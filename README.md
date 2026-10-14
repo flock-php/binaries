@@ -10,7 +10,6 @@ riskiest parts before the release pipeline is built:
 | Workflow | Question it answers |
 |---|---|
 | `poc-php-macos.yml` | Does static-php-cli build PHP 8.1–8.5 with the optional extensions (imagick, swoole, pcov, mongodb, memcached, xdebug) as shared `.so` files, portable to Macs without Homebrew? |
-| `poc-php-legacy-macos.yml` | Which route still produces portable PHP 7.4 and 8.0 builds for macOS? |
 | `poc-valkey-windows.yml` | Does Valkey built with MSYS2 survive Flock's use on Windows (fork-based persistence, hard kills, restarts)? |
 | `poc-php-ext-windows.yml` | Does php-windows-builder build the extension DLLs (imagick, redis, igbinary, apcu, pcov, mongodb) for PHP 7.4–8.5? |
 
