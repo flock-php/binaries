@@ -23,21 +23,15 @@ export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
 mkdir -p "${WORK_DIR:=$PWD/spc-work}"
 cd "$WORK_DIR"
 
-# PHP < 8.2 still has K&R-style function definitions (e.g. ext/bcmath/libbcmath), which
-# Xcode's clang rejects now that it defaults to C23. Overrides spc's default C flags.
-if [[ "$(printf '%s\n8.2\n' "$PHP_MINOR" | sort -V | head -1)" != "8.2" ]]; then
-  export SPC_DEFAULT_C_FLAGS="--target=arm64-apple-darwin -Os -std=gnu17"
+# PHP 8.1 still has K&R-style function definitions (e.g. ext/bcmath/libbcmath), which Xcode's
+# clang rejects now that it defaults to C23. Only PHP's own C flags get -std=gnu17: the
+# default flags also reach C++ compilers, which refuse it. (macOS builds start at 8.1.)
+if [[ "$PHP_MINOR" == 8.1 ]]; then
+  export SPC_CMD_VAR_PHP_MAKE_EXTRA_CFLAGS="-g -fstack-protector-strong -fpic -fpie -Werror=unknown-warning-option --target=arm64-apple-darwin -Os -std=gnu17"
 fi
 
-# PHP < 8.1's ext/libxml does not compile against libxml2 >= 2.12 (changed error API).
-if [[ "$(printf '%s\n8.1\n' "$PHP_MINOR" | sort -V | head -1)" != "8.1" ]]; then
-  DOWNLOAD_ARGS="${DOWNLOAD_ARGS:-} --custom-url=libxml2:https://github.com/GNOME/libxml2/archive/refs/tags/v2.11.9.tar.gz"
-fi
-# PHP 7.4 cannot have opcache compiled in statically; build it as a shared zend_extension.
-if [[ "$PHP_MINOR" == 7.* ]]; then
-  STATIC_EXTS="$(tr ',' '\n' <<<"$STATIC_EXTS" | { grep -vx opcache || true; } | paste -sd, -)"
-  SHARED_EXTS="opcache${SHARED_EXTS:+,$SHARED_EXTS}"
-fi
+# swoole 6.2.x does not compile on macOS (sw_usleep undeclared in src/core/misc.cc).
+DOWNLOAD_ARGS="${DOWNLOAD_ARGS:-} --custom-url=swoole:https://github.com/swoole/swoole-src/archive/refs/tags/v6.1.10.tar.gz"
 
 # static-php-cli joins swoole's configure flags without a space, producing
 # "--with-nghttp2-dir=<buildroot>--disable-iouring". Make that path exist.
