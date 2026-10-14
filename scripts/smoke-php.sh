@@ -29,7 +29,10 @@ fi
 modules="$("$php" -n -m | tr '[:upper:]' '[:lower:]')"
 missing=()
 for ext in ${STATIC//,/ }; do
-  case "$ext" in mbregex) continue ;; opcache) ext="zend opcache" ;; esac
+  case "$ext" in
+    mbregex) continue ;;
+    opcache) [[ -f "$DIR/ext/opcache.so" ]] && continue; ext="zend opcache" ;; # shared on 7.4
+  esac
   grep -qx "$ext" <<<"$modules" || missing+=("$ext")
 done
 if [[ ${#missing[@]} -gt 0 ]]; then
@@ -43,6 +46,12 @@ fi
   echo "| shared extension | result | size |"
   echo "|---|---|---|"
 } >>"$summary"
+# Every listed extension, plus any other .so in ext/ (e.g. opcache on PHP 7.4).
+for so in "$DIR"/ext/*.so; do
+  [[ -f "$so" ]] || continue
+  name="$(basename "$so" .so)"
+  [[ ",$SHARED," == *",$name,"* ]] || SHARED="${SHARED:+$SHARED,}$name"
+done
 for ext in ${SHARED//,/ }; do
   # Absolute: PHP resolves relative extension paths against extension_dir.
   so="$(cd "$DIR/ext" && pwd)/$ext.so"
@@ -51,8 +60,9 @@ for ext in ${SHARED//,/ }; do
     [[ "${REQUIRE_SHARED:-0}" == 1 ]] && failed=1
     continue
   fi
-  directive="extension"; [[ "$ext" == xdebug ]] && directive="zend_extension"
-  out="$("$php" -n -d "$directive=$so" -r "echo phpversion('$ext');" 2>&1)"
+  directive="extension"; name="$ext"
+  case "$ext" in xdebug) directive="zend_extension" ;; opcache) directive="zend_extension"; name="Zend OPcache" ;; esac
+  out="$("$php" -n -d "$directive=$so" -r "echo phpversion('$name');" 2>&1)"
   rc=$?
   size="$(du -h "$so" | cut -f1)"
   if [[ $rc -eq 0 && -n "$out" && "$out" != *Warning* && "$out" != *Error* ]]; then
