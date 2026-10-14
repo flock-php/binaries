@@ -25,12 +25,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { route: spc-old, php: "7.4", spc: "2.3.6", xdebug: "3.1.6" }
-          - { route: spc-old, php: "8.0", spc: "2.3.6", xdebug: "3.3.2" }
-          - { route: spc-new, php: "8.0", spc: "2.8.5", xdebug: "3.3.2" }
+          # 2.3.6 has no --build-shared: core PHP only, to see whether it still builds 7.4 at all.
+          - { route: spc-old, php: "7.4", spc: "2.3.6", xdebug: "3.1.6", shared: "" }
+          - { route: spc-new, php: "7.4", spc: "2.8.5", xdebug: "3.1.6", shared: xdebug }
+          - { route: spc-new, php: "8.0", spc: "2.8.5", xdebug: "3.3.2", shared: xdebug }
     env:
       SPC_VERSION: ${{ matrix.spc }}
-      SHARED_EXTS: xdebug
+      SHARED_EXTS: ${{ matrix.shared }}
       # The newest Xdebug no longer supports these PHP versions.
       DOWNLOAD_ARGS: --custom-url=xdebug:https://xdebug.org/files/xdebug-${{ matrix.xdebug }}.tgz
       GITHUB_TOKEN: ${{ github.token }}
@@ -67,6 +68,7 @@ jobs:
           brew tap shivammathur/php
           brew install "shivammathur/php/php@${{ matrix.php }}" dylibbundler
       - name: Make relocatable
+        timeout-minutes: 15
         run: |
           prefix="$(brew --prefix "php@${{ matrix.php }}")"
           mkdir -p out/bin out/lib out/ext
@@ -74,7 +76,11 @@ jobs:
           cp "$prefix/sbin/php-fpm" out/bin/php-fpm
           chmod u+w out/bin/*
           # Copies every non-system dylib into out/lib and rewrites references to @loader_path.
-          dylibbundler -cd -of -b -x out/bin/php -x out/bin/php-fpm -d out/lib -p @executable_path/../lib
+          # -s: Homebrew's lib dir resolves the @loader_path/../../opt/… references between kegs.
+          # `yes quit`: dylibbundler asks interactively for libraries it can't find; abort instead.
+          # (`|| true`: yes exits on SIGPIPE, which pipefail would treat as a failure.)
+          { yes quit || true; } | dylibbundler -cd -of -b -x out/bin/php -x out/bin/php-fpm -d out/lib -p @executable_path/../lib \
+            -s "$(brew --prefix)/lib"
           find out -type f -exec codesign --force --sign - {} \;
           { echo; echo "bundled $(ls out/lib | wc -l) dylibs, $(du -sh out | cut -f1) total"; } >> "$GITHUB_STEP_SUMMARY"
           # Homebrew bottles target the runner's macOS, not 13.0: report rather than fail.
@@ -96,7 +102,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        artifact: [php-7.4-spc-old, php-8.0-spc-old, php-8.0-spc-new, php-7.4-brew, php-8.0-brew]
+        artifact: [php-7.4-spc-old, php-7.4-spc-new, php-8.0-spc-new, php-7.4-brew, php-8.0-brew]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
