@@ -30,8 +30,13 @@ if [[ "$PHP_MINOR" == 8.1 ]]; then
   export SPC_CMD_VAR_PHP_MAKE_EXTRA_CFLAGS="-g -fstack-protector-strong -fpic -fpie -Werror=unknown-warning-option --target=arm64-apple-darwin -Os -std=gnu17"
 fi
 
-# swoole 6.2.x does not compile on macOS (sw_usleep undeclared in src/core/misc.cc).
-DOWNLOAD_ARGS="${DOWNLOAD_ARGS:-} --custom-url=swoole:https://github.com/swoole/swoole-src/archive/refs/tags/v6.1.10.tar.gz"
+# swoole's futex fallback for platforms without futex (macOS) calls sw_usleep(), which swoole
+# never defines (src/core/misc.cc, 6.1 and 6.2). The define is harmless for every other C++ file.
+export SPC_DEFAULT_CXX_FLAGS="--target=arm64-apple-darwin -Os -Dsw_usleep=usleep"
+
+# Stable Xdebug: static-php-cli takes the newest tag, which can be an alpha (3.6.0alpha1
+# no longer builds for 8.1). 3.5.3 supports PHP 8.0–8.5.
+DOWNLOAD_ARGS="${DOWNLOAD_ARGS:-} --custom-url=xdebug:https://xdebug.org/files/xdebug-3.5.3.tgz"
 
 # static-php-cli joins swoole's configure flags without a space, producing
 # "--with-nghttp2-dir=<buildroot>--disable-iouring". Make that path exist.
