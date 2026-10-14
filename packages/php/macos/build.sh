@@ -23,6 +23,16 @@ export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
 mkdir -p "${WORK_DIR:=$PWD/spc-work}"
 cd "$WORK_DIR"
 
+# PHP < 8.2 still has K&R-style function definitions (e.g. ext/bcmath/libbcmath), which
+# Xcode's clang rejects now that it defaults to C23. Overrides spc's default C flags.
+if [[ "$(printf '%s\n8.2\n' "$PHP_MINOR" | sort -V | head -1)" != "8.2" ]]; then
+  export SPC_DEFAULT_C_FLAGS="--target=arm64-apple-darwin -Os -std=gnu17"
+fi
+
+# static-php-cli joins swoole's configure flags without a space, producing
+# "--with-nghttp2-dir=<buildroot>--disable-iouring". Make that path exist.
+ln -sfn "$WORK_DIR/buildroot" "$WORK_DIR/buildroot--disable-iouring"
+
 echo "::group::static-php-cli $SPC_VERSION"
 if [[ ! -x ./spc ]]; then
   curl -fsSL "https://github.com/crazywhalecc/static-php-cli/releases/download/$SPC_VERSION/spc-macos-aarch64.tar.gz" | tar xz
@@ -41,8 +51,11 @@ echo "::endgroup::"
 
 # spc hides compiler output; it lands in log/ (wiped by the next spc command), so print the errors.
 print_spc_errors() {
-  echo "::group::static-php-cli log (errors)"
-  grep -h -B3 -A12 -E 'error:|Error [0-9]+|fatal error|Undefined symbols|ld: ' log/*.log 2>/dev/null | head -250 || true
+  echo "::group::static-php-cli log: errors"
+  grep -h -E ' error:|fatal error|Undefined symbols|^  "_|symbol\(s\) not found|\*\*\* \[' log/*.log 2>/dev/null | sort -u | head -80 || true
+  echo "::endgroup::"
+  echo "::group::static-php-cli log: last 80 lines"
+  tail -n 80 log/spc.shell.log 2>/dev/null || true
   echo "::endgroup::"
 }
 
@@ -53,7 +66,9 @@ rm -rf "$OUT" && mkdir -p "$OUT/bin" "$OUT/ext" "$OUT/LICENSES"
 pending="$SHARED_EXTS"
 for attempt in 1 2 3 4; do
   echo "::group::Build PHP $PHP_MINOR (attempt $attempt${pending:+, shared: $pending})"
-  rm -rf buildroot/modules buildroot/bin/php buildroot/bin/php-fpm
+  # Start clean: libraries built for an extension we dropped (e.g. curl with brotli for swoole)
+  # would otherwise be linked without their dependencies. Pre-built libraries unpack quickly.
+  rm -rf buildroot source/php-src
   ok=1
   # static-php-cli's post-build sanity checks are stricter than we need; the smoke test verifies.
   ./spc build "$STATIC_EXTS" ${pending:+--build-shared="$pending"} --build-cli --build-fpm 2>&1 | tee spc-build.out || ok=0
