@@ -44,7 +44,8 @@ fi
   echo "|---|---|---|"
 } >>"$summary"
 for ext in ${SHARED//,/ }; do
-  so="$DIR/ext/$ext.so"
+  # Absolute: PHP resolves relative extension paths against extension_dir.
+  so="$(cd "$DIR/ext" && pwd)/$ext.so"
   if [[ ! -f "$so" ]]; then
     echo "| $ext | ✗ not built | |" >>"$summary"; echo "✗ $ext.so not built"
     [[ "${REQUIRE_SHARED:-0}" == 1 ]] && failed=1

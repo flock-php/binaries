@@ -39,24 +39,48 @@ echo "::group::Download sources for PHP $PHP_MINOR"
 ./spc download --with-php="$PHP_MINOR" --for-extensions="$all" --prefer-pre-built --retry=3 ${DOWNLOAD_ARGS:-}
 echo "::endgroup::"
 
-echo "::group::Build PHP $PHP_MINOR"
-rm -rf buildroot/modules buildroot/bin/php buildroot/bin/php-fpm
-# static-php-cli's post-build sanity checks are stricter than we need; the smoke test verifies.
-./spc build "$STATIC_EXTS" ${SHARED_EXTS:+--build-shared="$SHARED_EXTS"} --build-cli --build-fpm \
-  || echo "::warning::spc build reported a problem, checking what was built"
-echo "::endgroup::"
-
-[[ -x buildroot/bin/php && -x buildroot/bin/php-fpm ]] || { echo "::error::php or php-fpm missing"; exit 1; }
+# spc hides compiler output; it lands in log/ (wiped by the next spc command), so print the errors.
+print_spc_errors() {
+  echo "::group::static-php-cli log (errors)"
+  grep -h -B3 -A12 -E 'error:|Error [0-9]+|fatal error|Undefined symbols|ld: ' log/*.log 2>/dev/null | head -250 || true
+  echo "::endgroup::"
+}
 
 rm -rf "$OUT" && mkdir -p "$OUT/bin" "$OUT/ext" "$OUT/LICENSES"
-cp buildroot/bin/php buildroot/bin/php-fpm "$OUT/bin/"
-for ext in ${SHARED_EXTS//,/ }; do
-  so="$(find buildroot/modules buildroot/lib/php -name "$ext.so" 2>/dev/null | head -1 || true)"
-  if [[ -n "$so" ]]; then
-    cp "$so" "$OUT/ext/"
-  else
-    echo "::warning::$ext.so was not built"
+
+# static-php-cli builds the shared extensions one after another and stops at the first that
+# fails. Rebuild without that one until every remaining extension built (at most 4 attempts).
+pending="$SHARED_EXTS"
+for attempt in 1 2 3 4; do
+  echo "::group::Build PHP $PHP_MINOR (attempt $attempt${pending:+, shared: $pending})"
+  rm -rf buildroot/modules buildroot/bin/php buildroot/bin/php-fpm
+  ok=1
+  # static-php-cli's post-build sanity checks are stricter than we need; the smoke test verifies.
+  ./spc build "$STATIC_EXTS" ${pending:+--build-shared="$pending"} --build-cli --build-fpm 2>&1 | tee spc-build.out || ok=0
+  echo "::endgroup::"
+  [[ $ok -eq 1 ]] || print_spc_errors
+
+  [[ -x buildroot/bin/php && -x buildroot/bin/php-fpm ]] || { echo "::error::php or php-fpm missing"; exit 1; }
+  cp buildroot/bin/php buildroot/bin/php-fpm "$OUT/bin/"
+
+  remaining=""
+  for ext in ${pending//,/ }; do
+    so="$(find buildroot/modules buildroot/lib/php -name "$ext.so" 2>/dev/null | head -1 || true)"
+    if [[ -n "$so" ]]; then cp "$so" "$OUT/ext/"; else remaining="${remaining:+$remaining,}$ext"; fi
+  done
+  [[ -z "$remaining" ]] && break
+
+  failed="$(sed -n 's/.*Failed module: .*shared extension \([a-z0-9_]*\) builder.*/\1/p' spc-build.out | tail -1)"
+  if [[ -z "$failed" ]]; then
+    echo "::warning::not built and no failing extension reported: $remaining"
+    break
   fi
+  echo "::warning::$failed.so failed to build, retrying without it"
+  pending="$(tr ',' '\n' <<<"$remaining" | { grep -vx "$failed" || true; } | paste -sd, -)"
+  [[ -n "$pending" ]] || break
+done
+for ext in ${SHARED_EXTS//,/ }; do
+  [[ -f "$OUT/ext/$ext.so" ]] || echo "::warning::$ext.so was not built"
 done
 
 ./spc dump-license --for-extensions="$all" --dump-dir="$OUT/LICENSES" \
