@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# Builds PHP (cli + fpm, plus shared extensions) for macOS with static-php-cli.
+# Builds PHP for macOS with static-php-cli: either php + php-fpm (NTS) or FrankenPHP (ZTS,
+# PHP embedded), each with the same compiled-in extensions plus shared extensions as .so.
 #
 # Usage: packages/php/macos/build.sh <major.minor> <out-dir>
 #   SPC_VERSION     static-php-cli release to use (required)
-#   STATIC_EXTS     comma-separated extensions compiled into php/php-fpm (required)
+#   STATIC_EXTS     comma-separated extensions compiled in (required)
 #   SHARED_EXTS     comma-separated extensions built as .so (optional)
+#   TARGET          php (default: bin/php, bin/php-fpm) or frankenphp (bin/frankenphp, PHP >= 8.2)
 #   DOWNLOAD_ARGS   extra arguments for `spc download`, e.g. --custom-url=xdebug:https://… (optional)
 #   WORK_DIR        static-php-cli workspace (default: ./spc-work)
 #   GITHUB_TOKEN    lets static-php-cli query GitHub without the anonymous rate limit
 #
-# Produces <out-dir>/bin/{php,php-fpm}, <out-dir>/ext/*.so and <out-dir>/LICENSES/.
+# Produces <out-dir>/bin/…, <out-dir>/ext/*.so and <out-dir>/LICENSES/.
 # A shared extension that fails to build is reported, not fatal: PHP is still usable without it.
 set -euo pipefail
 
@@ -18,7 +20,14 @@ OUT="$(mkdir -p "${2:?usage: build.sh <major.minor> <out-dir>}" && cd "$2" && pw
 : "${SPC_VERSION:?SPC_VERSION is required}"
 : "${STATIC_EXTS:?STATIC_EXTS is required}"
 SHARED_EXTS="${SHARED_EXTS:-}"
+TARGET="${TARGET:-php}"
 export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
+
+case "$TARGET" in
+  php)        build_flags=(--build-cli --build-fpm); binaries=(php php-fpm) ;;
+  frankenphp) build_flags=(--enable-zts --build-frankenphp); binaries=(frankenphp) ;;
+  *)          echo "unknown TARGET $TARGET" >&2; exit 1 ;;
+esac
 
 mkdir -p "${WORK_DIR:=$PWD/spc-work}"
 cd "$WORK_DIR"
@@ -30,17 +39,9 @@ if [[ "$PHP_MINOR" == 8.1 ]]; then
   export SPC_CMD_VAR_PHP_MAKE_EXTRA_CFLAGS="-g -fstack-protector-strong -fpic -fpie -Werror=unknown-warning-option --target=arm64-apple-darwin -Os -std=gnu17"
 fi
 
-# swoole's futex fallback for platforms without futex (macOS) calls sw_usleep(), which swoole
-# never defines (src/core/misc.cc, 6.1 and 6.2). The define is harmless for every other C++ file.
-export SPC_DEFAULT_CXX_FLAGS="--target=arm64-apple-darwin -Os -Dsw_usleep=usleep"
-
 # Stable Xdebug: static-php-cli takes the newest tag, which can be an alpha (3.6.0alpha1
 # no longer builds for 8.1). 3.5.3 supports PHP 8.0–8.5.
 DOWNLOAD_ARGS="${DOWNLOAD_ARGS:-} --custom-url=xdebug:https://xdebug.org/files/xdebug-3.5.3.tgz"
-
-# static-php-cli joins swoole's configure flags without a space, producing
-# "--with-nghttp2-dir=<buildroot>--disable-iouring". Make that path exist.
-ln -sfn "$WORK_DIR/buildroot" "$WORK_DIR/buildroot--disable-iouring"
 
 echo "::group::static-php-cli $SPC_VERSION"
 if [[ ! -x ./spc ]]; then
@@ -49,6 +50,9 @@ if [[ ! -x ./spc ]]; then
 fi
 ./spc --version
 ./spc doctor --auto-fix
+if [[ "$TARGET" == frankenphp ]]; then
+  ./spc install-pkg go-xcaddy   # Go toolchain + xcaddy, used to build FrankenPHP
+fi
 echo "::endgroup::"
 
 all="$STATIC_EXTS${SHARED_EXTS:+,$SHARED_EXTS}"
@@ -56,6 +60,9 @@ all="$STATIC_EXTS${SHARED_EXTS:+,$SHARED_EXTS}"
 echo "::group::Download sources for PHP $PHP_MINOR"
 # shellcheck disable=SC2086
 ./spc download --with-php="$PHP_MINOR" --for-extensions="$all" --prefer-pre-built --retry=3 ${DOWNLOAD_ARGS:-}
+if [[ "$TARGET" == frankenphp ]]; then
+  ./spc download frankenphp --retry=3
+fi
 echo "::endgroup::"
 
 # spc hides compiler output; it lands in log/ (wiped by the next spc command), so print the errors.
@@ -74,18 +81,20 @@ rm -rf "$OUT" && mkdir -p "$OUT/bin" "$OUT/ext" "$OUT/LICENSES"
 # fails. Rebuild without that one until every remaining extension built (at most 4 attempts).
 pending="$SHARED_EXTS"
 for attempt in 1 2 3 4; do
-  echo "::group::Build PHP $PHP_MINOR (attempt $attempt${pending:+, shared: $pending})"
-  # Start clean: libraries built for an extension we dropped (e.g. curl with brotli for swoole)
-  # would otherwise be linked without their dependencies. Pre-built libraries unpack quickly.
+  echo "::group::Build $TARGET for PHP $PHP_MINOR (attempt $attempt${pending:+, shared: $pending})"
+  # Start clean: libraries built for an extension we dropped would otherwise be linked
+  # without their dependencies. Pre-built libraries unpack quickly.
   rm -rf buildroot source/php-src
   ok=1
   # static-php-cli's post-build sanity checks are stricter than we need; the smoke test verifies.
-  ./spc build "$STATIC_EXTS" ${pending:+--build-shared="$pending"} --build-cli --build-fpm 2>&1 | tee spc-build.out || ok=0
+  ./spc build "$STATIC_EXTS" ${pending:+--build-shared="$pending"} "${build_flags[@]}" 2>&1 | tee spc-build.out || ok=0
   echo "::endgroup::"
   [[ $ok -eq 1 ]] || print_spc_errors
 
-  [[ -x buildroot/bin/php && -x buildroot/bin/php-fpm ]] || { echo "::error::php or php-fpm missing"; exit 1; }
-  cp buildroot/bin/php buildroot/bin/php-fpm "$OUT/bin/"
+  for bin in "${binaries[@]}"; do
+    [[ -x "buildroot/bin/$bin" ]] || { echo "::error::$bin missing"; exit 1; }
+    cp "buildroot/bin/$bin" "$OUT/bin/"
+  done
 
   remaining=""
   for ext in ${pending//,/ }; do
@@ -113,5 +122,5 @@ done
 # Binaries must be signed to run on Apple Silicon; re-sign after copying/stripping.
 find "$OUT/bin" "$OUT/ext" -type f -exec codesign --force --sign - {} \;
 
-"$OUT/bin/php" -n -v
-echo "built PHP into $OUT"
+ls -la "$OUT/bin"
+echo "built $TARGET for PHP $PHP_MINOR into $OUT"

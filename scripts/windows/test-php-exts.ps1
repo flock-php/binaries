@@ -1,4 +1,4 @@
-# Installs the official NTS x64 build of a PHP minor and loads every extension DLL found under
+# Installs the official thread-safe (TS) x64 build of a PHP minor and loads every extension DLL found under
 # -Exts into it (one directory per extension, as downloaded from the build jobs' artifacts).
 # MongoDB is not built: its maintainers publish signed Windows DLLs, which are fetched here.
 # Results go to stdout and $GITHUB_STEP_SUMMARY; exits 1 if any extension fails to load.
@@ -15,9 +15,9 @@ $ProgressPreference = 'SilentlyContinue'
 # minors without current releases live under archives/. Directory listings are gone (403).
 $releases = Invoke-RestMethod https://windows.php.net/downloads/releases/releases.json
 $entry = $releases.$Php
-$key = $entry.PSObject.Properties.Name | Where-Object { $_ -match '^nts-v[sc]\d+-x64$' } | Select-Object -First 1
+$key = $entry.PSObject.Properties.Name | Where-Object { $_ -match '^ts-v[sc]\d+-x64$' } | Select-Object -First 1
 $zip = $entry.$key.zip.path
-$vs = $key -replace '^nts-(v[sc]\d+)-x64$', '$1'
+$vs = $key -replace '^ts-(v[sc]\d+)-x64$', '$1'
 try {
     Invoke-WebRequest "https://downloads.php.net/~windows/releases/$zip" -OutFile php.zip
 } catch {
@@ -28,7 +28,7 @@ Expand-Archive php.zip -DestinationPath php -Force
 
 # MongoDB's official DLL (only published for the PHP versions it supports).
 try {
-    $url = "https://github.com/mongodb/mongo-php-driver/releases/download/$MongoDB/php_mongodb-$MongoDB-$Php-nts-$vs-x86_64.zip"
+    $url = "https://github.com/mongodb/mongo-php-driver/releases/download/$MongoDB/php_mongodb-$MongoDB-$Php-ts-$vs-x86_64.zip"
     $dir = New-Item -ItemType Directory -Force (Join-Path $Exts 'ext-mongodb')
     Invoke-WebRequest $url -OutFile (Join-Path $dir 'mongodb.zip')
 } catch {
@@ -43,7 +43,7 @@ $rows = @("| extension | PHP $Php |", '|---|---|')
 $failed = $false
 foreach ($dir in Get-ChildItem $Exts -Directory -Filter 'ext-*') {
     $ext = ($dir.Name -split '-')[1]
-    # Builder output is named e.g. php_pcov-v1.0.12-8.5-nts-vs17-x86_64.dll; PHP wants php_pcov.dll.
+    # Builder output is named e.g. php_pcov-v1.0.12-8.5-ts-vs17-x86_64.dll; PHP wants php_pcov.dll.
     $dll = Get-ChildItem $dir.FullName -Recurse -Filter "php_$ext*.dll" | Select-Object -First 1
     if (-not $dll) { $rows += "| $ext | FAIL: no php_$ext DLL in artifact |"; $failed = $true; continue }
     Copy-Item $dll.FullName "php/ext/php_$ext.dll" -Force

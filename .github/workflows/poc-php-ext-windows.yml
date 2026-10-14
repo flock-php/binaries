@@ -1,7 +1,8 @@
 # Proof of concept (c): PHP's php-windows-builder action builds the extension DLLs Flock needs
 # on Windows (the official PHP builds and windows.php.net no longer ship them), including
 # imagick with its ImageMagick DLLs, for both the oldest (7.4) and newest PHP we support.
-# Each DLL is then loaded into the official PHP build of that version.
+# Each DLL is then loaded into the official thread-safe PHP build of that version (TS, so the
+# same DLLs also work in FrankenPHP).
 name: "PoC: PHP extensions Windows"
 
 on:
@@ -45,7 +46,7 @@ jobs:
           extension-ref: ${{ matrix.ref }}
           php-version: ${{ matrix.php }}
           arch: x64
-          ts: nts
+          ts: ts
           libs: ${{ matrix.libs }}
           args: ${{ matrix.args }}
           run-tests: false
