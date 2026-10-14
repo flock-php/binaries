@@ -4,7 +4,7 @@
 # The result is a directory with frankenphp.exe next to the complete official PHP TS build.
 #
 # Usage: packages/frankenphp/windows/build.ps1 -Php 8.4 -FrankenPHP v1.13.0 -Out out
-#   needs: go (1.26+) on PATH, GH_TOKEN for downloading watcher with gh
+#   needs: go on PATH (it fetches the version go.mod requires), GH_TOKEN for downloading watcher with gh
 param(
     [Parameter(Mandatory)] [string] $Php,
     [Parameter(Mandatory)] [string] $FrankenPHP,
@@ -56,7 +56,9 @@ $env:PATH = "$vs\VC\Tools\Llvm\bin;$vcpkgRoot\bin;$watcherRoot;$Out;$env:PATH"
 $env:CC = 'clang'
 $env:CXX = 'clang++'
 $env:CGO_ENABLED = '1'
-$env:GOTOOLCHAIN = 'local'
+# auto: Go fetches the toolchain FrankenPHP's go.mod asks for (1.13 needs Go 1.27), so the
+# runner's Go version doesn't have to track FrankenPHP releases.
+$env:GOTOOLCHAIN = 'auto'
 $fpVersion = $FrankenPHP.TrimStart('v')
 $env:CGO_CFLAGS = "-DFRANKENPHP_VERSION=$fpVersion -I$vcpkgRoot\include -I$watcherRoot -I$phpDevel\include -I$phpDevel\include\main -I$phpDevel\include\TSRM -I$phpDevel\include\Zend -I$phpDevel\include\ext"
 $env:CGO_LDFLAGS = "-L$vcpkgRoot\lib -lbrotlienc -L$watcherRoot -llibwatcher-c -L$Out -L$phpDevel\lib -lphp8ts -lphp8embed"
