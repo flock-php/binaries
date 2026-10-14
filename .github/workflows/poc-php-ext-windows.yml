@@ -34,8 +34,12 @@ jobs:
           - { ext: mongodb,  repo: mongodb/mongo-php-driver,  ref: "2.5.4",   php: "8.5" }
     steps:
       - uses: actions/checkout@v4
+      # Patched copy until https://github.com/php/php-windows-builder/issues/34 is fixed.
+      - name: Prepare php-windows-builder
+        shell: pwsh
+        run: ./scripts/windows/prepare-builder.ps1
       - name: Build
-        uses: php/php-windows-builder/extension@v1
+        uses: ./.builder/extension
         with:
           extension-url: https://github.com/${{ matrix.repo }}
           extension-ref: ${{ matrix.ref }}

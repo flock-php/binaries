@@ -1,0 +1,6 @@
+# Patched php-windows-builder checkout (scripts/windows/prepare-builder.ps1)
+/.builder/
+# Local build workspaces and outputs
+/spc-work/
+/valkey-work/
+/out/
