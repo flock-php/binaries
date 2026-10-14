@@ -1,0 +1,54 @@
+# Proof of concept (b): Valkey built with MSYS2 runs on Windows well enough for Flock:
+# persistence via fork, hard kills, restarts. The test job runs on a fresh runner without
+# MSYS2, with Git's own msys-2.0.dll removed from PATH, so only the bundled DLLs can be used.
+# If this fails, the fallback is Microsoft Garnet.
+name: "PoC: Valkey Windows (MSYS2)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Valkey version
+        default: "9.1.2"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          update: true
+          install: gcc make pkg-config curl tar
+      - name: Build
+        shell: msys2 {0}
+        run: bash packages/valkey/windows/build.sh "${{ inputs.version }}" out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: valkey-${{ inputs.version }}-windows-x64
+          path: out
+          retention-days: 14
+
+  test:
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: valkey-${{ inputs.version }}-windows-x64
+          path: pkg
+      - name: Remove other MSYS runtimes from PATH
+        shell: pwsh
+        run: |
+          $clean = ($env:PATH -split ';' | Where-Object { -not (Test-Path (Join-Path $_ 'msys-2.0.dll')) }) -join ';'
+          Add-Content $env:GITHUB_ENV "PATH=$clean"
+      - name: Smoke test
+        shell: pwsh
+        run: ./scripts/smoke-valkey.ps1 -Dir pkg

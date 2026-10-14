@@ -1,0 +1,114 @@
+# Proof of concept (d): can we still produce portable macOS builds of PHP 7.4 and 8.0?
+# Current static-php-cli only supports 8.1+, so this tries three routes side by side:
+#   spc-old   static-php-cli 2.3.6 (mid 2024, the last line that still listed 7.4)
+#   spc-new   current static-php-cli with 8.0 (listed as "no backports", may still work)
+#   brew      shivammathur/php's patched Homebrew formula, made relocatable with dylibbundler
+# 7.4.33 and 8.0.30 are final releases, so whichever route works only has to work once.
+name: "PoC: PHP 7.4/8.0 macOS"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Like the 8.1+ set, minus extensions that never supported these versions in spc.
+  STATIC_EXTS: bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,igbinary,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,apcu
+
+jobs:
+  spc:
+    name: ${{ matrix.route }} ${{ matrix.php }}
+    runs-on: macos-15
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { route: spc-old, php: "7.4", spc: "2.3.6", xdebug: "3.1.6" }
+          - { route: spc-old, php: "8.0", spc: "2.3.6", xdebug: "3.3.2" }
+          - { route: spc-new, php: "8.0", spc: "2.8.5", xdebug: "3.3.2" }
+    env:
+      SPC_VERSION: ${{ matrix.spc }}
+      SHARED_EXTS: xdebug
+      # The newest Xdebug no longer supports these PHP versions.
+      DOWNLOAD_ARGS: --custom-url=xdebug:https://xdebug.org/files/xdebug-${{ matrix.xdebug }}.tgz
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: bash packages/php/macos/build.sh "${{ matrix.php }}" out
+      - name: Portability (otool)
+        run: bash scripts/verify-macos.sh out 13.0 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Smoke test
+        run: bash scripts/smoke-php.sh out "$STATIC_EXTS" "$SHARED_EXTS"
+      - name: Package
+        if: always()
+        run: tar -C out -cJf "php-${{ matrix.php }}-${{ matrix.route }}.tar.xz" .
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: php-${{ matrix.php }}-${{ matrix.route }}
+          path: php-${{ matrix.php }}-${{ matrix.route }}.tar.xz
+          retention-days: 14
+
+  brew:
+    name: brew ${{ matrix.php }}
+    runs-on: macos-15
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["7.4", "8.0"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PHP from shivammathur/php
+        run: |
+          brew tap shivammathur/php
+          brew install "shivammathur/php/php@${{ matrix.php }}" dylibbundler
+      - name: Make relocatable
+        run: |
+          prefix="$(brew --prefix "php@${{ matrix.php }}")"
+          mkdir -p out/bin out/lib out/ext
+          cp "$prefix/bin/php" out/bin/php
+          cp "$prefix/sbin/php-fpm" out/bin/php-fpm
+          chmod u+w out/bin/*
+          # Copies every non-system dylib into out/lib and rewrites references to @loader_path.
+          dylibbundler -cd -of -b -x out/bin/php -x out/bin/php-fpm -d out/lib -p @executable_path/../lib
+          find out -type f -exec codesign --force --sign - {} \;
+          { echo; echo "bundled $(ls out/lib | wc -l) dylibs, $(du -sh out | cut -f1) total"; } >> "$GITHUB_STEP_SUMMARY"
+          # Homebrew bottles target the runner's macOS, not 13.0: report rather than fail.
+          bash scripts/verify-macos.sh out 99 | tee -a "$GITHUB_STEP_SUMMARY"
+          otool -l out/bin/php | awk '/LC_BUILD_VERSION/{b=1} b&&/minos/{print "php requires macOS " $2; exit}' | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Package
+        run: tar -C out -cJf "php-${{ matrix.php }}-brew.tar.xz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: php-${{ matrix.php }}-brew
+          path: php-${{ matrix.php }}-brew.tar.xz
+          retention-days: 14
+
+  portable:
+    name: run ${{ matrix.artifact }} without Homebrew
+    needs: [spc, brew]
+    if: always()
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        artifact: [php-7.4-spc-old, php-8.0-spc-old, php-8.0-spc-new, php-7.4-brew, php-8.0-brew]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+      - name: Hide Homebrew
+        run: sudo mv /opt/homebrew /opt/homebrew.hidden
+      - name: Smoke test
+        run: |
+          mkdir pkg && tar -C pkg -xJf "${{ matrix.artifact }}.tar.xz"
+          # The brew route has its own extension set; only check that it runs.
+          case "${{ matrix.artifact }}" in
+            *-brew) pkg/bin/php -n -v && pkg/bin/php -n -m | tr '\n' ' ' ;;
+            *) bash scripts/smoke-php.sh pkg "$STATIC_EXTS" xdebug ;;
+          esac

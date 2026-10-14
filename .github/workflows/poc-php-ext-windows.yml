@@ -1,0 +1,123 @@
+# Proof of concept (c): PHP's php-windows-builder action builds the extension DLLs Flock needs
+# on Windows (the official PHP builds and windows.php.net no longer ship them), including
+# imagick with its ImageMagick DLLs, for both the oldest (7.4) and newest PHP we support.
+# Each DLL is then loaded into the official PHP build of that version.
+name: "PoC: PHP extensions Windows"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.ext }} ${{ matrix.ref }} / PHP ${{ matrix.php }}
+    runs-on: windows-2022
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { ext: imagick,  repo: Imagick/imagick,           ref: "3.8.1",   php: "7.4", libs: ImageMagick-7 }
+          - { ext: imagick,  repo: Imagick/imagick,           ref: "3.8.1",   php: "8.0", libs: ImageMagick-7 }
+          - { ext: imagick,  repo: Imagick/imagick,           ref: "3.8.1",   php: "8.4", libs: ImageMagick-7 }
+          - { ext: imagick,  repo: Imagick/imagick,           ref: "3.8.1",   php: "8.5", libs: ImageMagick-7 }
+          - { ext: redis,    repo: phpredis/phpredis,         ref: "6.3.0",   php: "7.4" }
+          - { ext: redis,    repo: phpredis/phpredis,         ref: "6.3.0",   php: "8.5" }
+          - { ext: igbinary, repo: igbinary/igbinary,         ref: "3.2.16",  php: "7.4" }
+          - { ext: igbinary, repo: igbinary/igbinary,         ref: "3.2.16",  php: "8.5" }
+          - { ext: apcu,     repo: krakjoe/apcu,              ref: "v5.1.28", php: "7.4" }
+          - { ext: apcu,     repo: krakjoe/apcu,              ref: "v5.1.28", php: "8.5" }
+          - { ext: pcov,     repo: krakjoe/pcov,              ref: "v1.0.12", php: "7.4" }
+          - { ext: pcov,     repo: krakjoe/pcov,              ref: "v1.0.12", php: "8.5" }
+          - { ext: mongodb,  repo: mongodb/mongo-php-driver,  ref: "2.5.4",   php: "8.5" }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        uses: php/php-windows-builder/extension@v1
+        with:
+          extension-url: https://github.com/${{ matrix.repo }}
+          extension-ref: ${{ matrix.ref }}
+          php-version: ${{ matrix.php }}
+          arch: x64
+          ts: nts
+          libs: ${{ matrix.libs }}
+          run-tests: false
+      - name: List output
+        shell: pwsh
+        run: Get-ChildItem -Recurse artifacts | Select-Object FullName, Length | Format-Table -AutoSize
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ext-${{ matrix.ext }}-${{ matrix.php }}
+          path: artifacts/*
+          retention-days: 14
+
+  # Loads every DLL into the official NTS build of its PHP version on a fresh runner.
+  load:
+    name: load into PHP ${{ matrix.php }}
+    needs: build
+    if: always()
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["7.4", "8.0", "8.4", "8.5"]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ext-*-${{ matrix.php }}
+          path: exts
+      - name: Install official PHP ${{ matrix.php }}
+        shell: pwsh
+        run: |
+          $archived = @{ '7.4' = 'archives/php-7.4.33-nts-Win32-vc15-x64.zip'; '8.0' = 'archives/php-8.0.30-nts-Win32-vs16-x64.zip' }
+          $zip = $archived['${{ matrix.php }}']
+          if (-not $zip) {
+            $releases = Invoke-RestMethod https://windows.php.net/downloads/releases/releases.json
+            $entry = $releases.'${{ matrix.php }}'
+            $key = $entry.PSObject.Properties.Name | Where-Object { $_ -match '^nts-v[sc]\d+-x64$' } | Select-Object -First 1
+            $zip = $entry.$key.zip.path
+          }
+          Invoke-WebRequest "https://windows.php.net/downloads/releases/$zip" -OutFile php.zip
+          Expand-Archive php.zip -DestinationPath php
+          ./php/php.exe -n -v
+      - name: Load extensions
+        shell: pwsh
+        run: |
+          $rows = @('| extension | PHP ${{ matrix.php }} |', '|---|---|')
+          $failed = $false
+          Get-ChildItem exts -Filter *.zip -Recurse | ForEach-Object { Expand-Archive $_.FullName -DestinationPath $_.DirectoryName -Force }
+          foreach ($dir in Get-ChildItem exts -Directory -Filter 'ext-*') {
+            $ext = ($dir.Name -split '-')[1]
+            $dll = Get-ChildItem $dir.FullName -Recurse -Filter "php_$ext.dll" | Select-Object -First 1
+            if (-not $dll) { $rows += "| $ext | ✗ no php_$ext.dll in artifact |"; $failed = $true; continue }
+            Copy-Item $dll.FullName php/ext/
+            # Dependency DLLs (e.g. ImageMagick's CORE_RL_*.dll) must sit next to php.exe.
+            Get-ChildItem $dir.FullName -Recurse -Filter *.dll | Where-Object Name -notlike 'php_*' | Copy-Item -Destination php/ -Force
+            $code = "echo phpversion('$ext');"
+            if ($ext -eq 'imagick') {
+              $code += " `$i = new Imagick(); `$i->newImage(8, 8, 'red'); `$i->setImageFormat('png'); echo ' png:', strlen(`$i->getImageBlob()), ' formats:', count(Imagick::queryFormats());"
+            }
+            $out = & ./php/php.exe -n -d extension_dir=php/ext -d "extension=$ext" -r $code 2>&1 | Out-String
+            if ($LASTEXITCODE -eq 0 -and $out -and $out -notmatch 'Warning|Fatal') {
+              $rows += "| $ext | ✓ $($out.Trim()) |"
+            } else {
+              $rows += "| $ext | ✗ $($out.Trim() -replace '\r?\n', ' ') |"; $failed = $true
+            }
+          }
+          $rows | Write-Output
+          $rows | Add-Content $env:GITHUB_STEP_SUMMARY -Encoding utf8
+          if ($failed) { exit 1 }
+
+  # Which VC++ runtime DLLs we would bundle (one current runtime serves vc15, vs16 and vs17 builds).
+  vc-runtime:
+    runs-on: windows-2022
+    steps:
+      - name: Locate the VC++ redistributable DLLs
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT" -Directory | Sort-Object FullName | Select-Object -Last 1
+          "Runtime folder: $($crt.FullName)" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+          Get-ChildItem $crt.FullName | ForEach-Object { "- $($_.Name) ($([math]::Round($_.Length / 1KB)) KB)" } | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY

@@ -1,0 +1,94 @@
+# Proof of concept (a): static-php-cli builds PHP 8.1–8.5 for macOS with Flock's compiled-in
+# extensions plus the optional ones as shared .so files, and the result runs on a Mac without
+# Homebrew. Nothing is published; the packages are kept as workflow artifacts for inspection.
+name: "PoC: PHP macOS (shared extensions)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      php:
+        description: PHP minors (JSON list)
+        default: '["8.1", "8.4", "8.5"]'
+      spc:
+        description: static-php-cli release
+        default: "2.8.5"
+
+permissions:
+  contents: read
+
+env:
+  STATIC_EXTS: bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,igbinary,intl,ldap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,apcu
+  SHARED_EXTS: xdebug,imagick,swoole,pcov,mongodb,memcached
+
+jobs:
+  build:
+    name: build ${{ matrix.php }}
+    runs-on: macos-15
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ${{ fromJSON(inputs.php) }}
+    env:
+      SPC_VERSION: ${{ inputs.spc }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache static-php-cli downloads
+        uses: actions/cache@v4
+        with:
+          path: spc-work/downloads
+          key: spc-downloads-${{ inputs.spc }}-${{ matrix.php }}-${{ hashFiles('.github/workflows/poc-php-macos.yml') }}
+          restore-keys: spc-downloads-${{ inputs.spc }}-${{ matrix.php }}-
+
+      - name: Build
+        run: |
+          start=$(date +%s)
+          bash packages/php/macos/build.sh "${{ matrix.php }}" out
+          echo "Build took $(( ($(date +%s) - start) / 60 )) min" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Portability (otool)
+        run: bash scripts/verify-macos.sh out 13.0 | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke test
+        run: bash scripts/smoke-php.sh out "$STATIC_EXTS" "$SHARED_EXTS"
+
+      - name: Sizes
+        run: |
+          { echo; echo '```'; du -sh out/bin/* out/ext/* 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          ls out/LICENSES | head -100
+
+      - name: Package
+        if: always()
+        run: tar -C out -cJf "php-${{ matrix.php }}-macos-arm64.tar.xz" .
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: php-${{ matrix.php }}-macos-arm64
+          path: php-${{ matrix.php }}-macos-arm64.tar.xz
+          retention-days: 14
+
+  # Runs the package on the oldest Apple Silicon runner with Homebrew moved out of the way,
+  # the closest we get to a user's Mac without build tools.
+  portable:
+    name: run ${{ matrix.php }} without Homebrew
+    needs: build
+    if: always()
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ${{ fromJSON(inputs.php) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: php-${{ matrix.php }}-macos-arm64
+      - name: Hide Homebrew
+        run: sudo mv /opt/homebrew /opt/homebrew.hidden
+      - name: Smoke test
+        run: |
+          mkdir pkg && tar -C pkg -xJf "php-${{ matrix.php }}-macos-arm64.tar.xz"
+          bash scripts/smoke-php.sh pkg "$STATIC_EXTS" "$SHARED_EXTS"
