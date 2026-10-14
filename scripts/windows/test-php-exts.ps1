@@ -29,8 +29,9 @@ Expand-Archive php.zip -DestinationPath php -Force
 # MongoDB's official DLL (only published for the PHP versions it supports).
 try {
     $url = "https://github.com/mongodb/mongo-php-driver/releases/download/$MongoDB/php_mongodb-$MongoDB-$Php-ts-$vs-x86_64.zip"
+    Invoke-WebRequest $url -OutFile mongodb.zip
     $dir = New-Item -ItemType Directory -Force (Join-Path $Exts 'ext-mongodb')
-    Invoke-WebRequest $url -OutFile (Join-Path $dir 'mongodb.zip')
+    Move-Item mongodb.zip (Join-Path $dir 'mongodb.zip')
 } catch {
     Write-Output "no official MongoDB $MongoDB DLL for PHP $Php ($vs)"
 }
