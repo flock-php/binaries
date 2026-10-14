@@ -25,13 +25,13 @@ jobs:
           - { ext: imagick,  repo: Imagick/imagick,           ref: "3.8.1",   php: "8.5", libs: ImageMagick-7 }
           - { ext: redis,    repo: phpredis/phpredis,         ref: "6.3.0",   php: "7.4" }
           - { ext: redis,    repo: phpredis/phpredis,         ref: "6.3.0",   php: "8.5" }
-          - { ext: igbinary, repo: igbinary/igbinary,         ref: "3.2.16",  php: "7.4" }
-          - { ext: igbinary, repo: igbinary/igbinary,         ref: "3.2.16",  php: "8.5" }
+          # igbinary only enables itself for exactly "yes" (the builder passes "shared").
+          - { ext: igbinary, repo: igbinary/igbinary,         ref: "3.2.16",  php: "7.4", args: --enable-igbinary=yes }
+          - { ext: igbinary, repo: igbinary/igbinary,         ref: "3.2.16",  php: "8.5", args: --enable-igbinary=yes }
           - { ext: apcu,     repo: krakjoe/apcu,              ref: "v5.1.28", php: "7.4" }
           - { ext: apcu,     repo: krakjoe/apcu,              ref: "v5.1.28", php: "8.5" }
           - { ext: pcov,     repo: krakjoe/pcov,              ref: "v1.0.12", php: "7.4" }
           - { ext: pcov,     repo: krakjoe/pcov,              ref: "v1.0.12", php: "8.5" }
-          - { ext: mongodb,  repo: mongodb/mongo-php-driver,  ref: "2.5.4",   php: "8.5" }
     steps:
       - uses: actions/checkout@v4
       # Patched copy until https://github.com/php/php-windows-builder/issues/34 is fixed.
@@ -47,6 +47,7 @@ jobs:
           arch: x64
           ts: nts
           libs: ${{ matrix.libs }}
+          args: ${{ matrix.args }}
           run-tests: false
       - name: List output
         shell: pwsh
@@ -68,51 +69,14 @@ jobs:
       matrix:
         php: ["7.4", "8.0", "8.4", "8.5"]
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           pattern: ext-*-${{ matrix.php }}
           path: exts
-      - name: Install official PHP ${{ matrix.php }}
-        shell: pwsh
-        run: |
-          $archived = @{ '7.4' = 'archives/php-7.4.33-nts-Win32-vc15-x64.zip'; '8.0' = 'archives/php-8.0.30-nts-Win32-vs16-x64.zip' }
-          $zip = $archived['${{ matrix.php }}']
-          if (-not $zip) {
-            $releases = Invoke-RestMethod https://windows.php.net/downloads/releases/releases.json
-            $entry = $releases.'${{ matrix.php }}'
-            $key = $entry.PSObject.Properties.Name | Where-Object { $_ -match '^nts-v[sc]\d+-x64$' } | Select-Object -First 1
-            $zip = $entry.$key.zip.path
-          }
-          Invoke-WebRequest "https://windows.php.net/downloads/releases/$zip" -OutFile php.zip
-          Expand-Archive php.zip -DestinationPath php
-          ./php/php.exe -n -v
       - name: Load extensions
         shell: pwsh
-        run: |
-          $rows = @('| extension | PHP ${{ matrix.php }} |', '|---|---|')
-          $failed = $false
-          Get-ChildItem exts -Filter *.zip -Recurse | ForEach-Object { Expand-Archive $_.FullName -DestinationPath $_.DirectoryName -Force }
-          foreach ($dir in Get-ChildItem exts -Directory -Filter 'ext-*') {
-            $ext = ($dir.Name -split '-')[1]
-            $dll = Get-ChildItem $dir.FullName -Recurse -Filter "php_$ext.dll" | Select-Object -First 1
-            if (-not $dll) { $rows += "| $ext | ✗ no php_$ext.dll in artifact |"; $failed = $true; continue }
-            Copy-Item $dll.FullName php/ext/
-            # Dependency DLLs (e.g. ImageMagick's CORE_RL_*.dll) must sit next to php.exe.
-            Get-ChildItem $dir.FullName -Recurse -Filter *.dll | Where-Object Name -notlike 'php_*' | Copy-Item -Destination php/ -Force
-            $code = "echo phpversion('$ext');"
-            if ($ext -eq 'imagick') {
-              $code += " `$i = new Imagick(); `$i->newImage(8, 8, 'red'); `$i->setImageFormat('png'); echo ' png:', strlen(`$i->getImageBlob()), ' formats:', count(Imagick::queryFormats());"
-            }
-            $out = & ./php/php.exe -n -d extension_dir=php/ext -d "extension=$ext" -r $code 2>&1 | Out-String
-            if ($LASTEXITCODE -eq 0 -and $out -and $out -notmatch 'Warning|Fatal') {
-              $rows += "| $ext | ✓ $($out.Trim()) |"
-            } else {
-              $rows += "| $ext | ✗ $($out.Trim() -replace '\r?\n', ' ') |"; $failed = $true
-            }
-          }
-          $rows | Write-Output
-          $rows | Add-Content $env:GITHUB_STEP_SUMMARY -Encoding utf8
-          if ($failed) { exit 1 }
+        run: ./scripts/windows/test-php-exts.ps1 -Php ${{ matrix.php }} -Exts exts
 
   # Which VC++ runtime DLLs we would bundle (one current runtime serves vc15, vs16 and vs17 builds).
   vc-runtime:
