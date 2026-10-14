@@ -21,7 +21,8 @@ sed -i 's/__GNU_VISIBLE/1/' /usr/include/dlfcn.h
 
 cd "valkey-$VERSION"
 # TLS stays off like on macOS: Flock only listens on 127.0.0.1.
-make -j"$(nproc)" BUILD_TLS=no MALLOC=libc USE_SYSTEMD=no CFLAGS="-Wno-char-subscripts"
+# _GNU_SOURCE: MSYS's newlib only declares asprintf() and friends with it.
+make -j"$(nproc)" BUILD_TLS=no MALLOC=libc USE_SYSTEMD=no CFLAGS="-D_GNU_SOURCE -Wno-char-subscripts"
 
 cd "$WORK/.."
 rm -rf "$OUT" && mkdir -p "$OUT"
