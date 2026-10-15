@@ -25,7 +25,7 @@ jobs:
       - id: plan
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: go -C tools/flockrel run . plan -versions ../../versions.json -packages postgres,mariadb,valkey,redis,mysql,mongodb,meilisearch,typesense,rustfs,node
+        run: go -C tools/flockrel run . plan -versions ../../versions.json -packages php,postgres,mariadb,valkey,redis,mysql,mongodb,meilisearch,typesense,rustfs,node
 
   builds:
     needs: plan

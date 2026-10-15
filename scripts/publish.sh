@@ -13,7 +13,7 @@ title() {
   case "$PKG" in
     postgres) echo PostgreSQL ;; mariadb) echo MariaDB ;; mysql) echo MySQL ;; mongodb) echo MongoDB ;;
     redis) echo Redis ;; valkey) echo Valkey ;; meilisearch) echo Meilisearch ;; typesense) echo Typesense ;;
-    rustfs) echo RustFS ;; node) echo Node.js ;; *) echo "$PKG" ;;
+    rustfs) echo RustFS ;; node) echo Node.js ;; php) echo PHP ;; *) echo "$PKG" ;;
   esac
 }
 

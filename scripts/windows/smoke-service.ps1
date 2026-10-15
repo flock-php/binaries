@@ -138,6 +138,26 @@ switch ($Package) {
         Check 'node' { Invoke-Native "$D/node.exe" @('-e', 'console.log(process.version, require(''crypto'').createHash(''sha256'').update(''x'').digest(''hex'').length)') }
         Check 'npm' { Invoke-Native "$D/npm.cmd" @('--version') }
     }
+    'php' {
+        $php = Join-Path $D 'php.exe'
+        Check 'php' { ((Invoke-Native $php @('-n', '-v')) -split "`n")[0] }
+        Check 'thread safe' { $zts = Invoke-Native $php @('-n', '-r', 'echo PHP_ZTS;'); if ($zts -ne '1') { throw "PHP_ZTS is $zts" } }
+        Check 'php-cgi' { ((Invoke-Native (Join-Path $D 'php-cgi.exe') @('-n', '-v')) -split "`n")[0] }
+        # The bundled extensions Laravel apps load (gd was gd2 before PHP 8.0).
+        $exts = 'curl', 'fileinfo', 'gd', 'intl', 'mbstring', 'openssl', 'pdo_mysql', 'pdo_pgsql', 'pdo_sqlite', 'sodium', 'zip'
+        Check 'bundled extensions' {
+            $flags = @('-n', '-d', "extension_dir=$(Join-Path $D 'ext')")
+            foreach ($e in $exts) {
+                if ($e -eq 'gd' -and -not (Test-Path (Join-Path $D 'ext/php_gd.dll'))) { $e = 'gd2' }
+                $flags += @('-d', "extension=$e")
+            }
+            $out = Invoke-Native $php ($flags + @('-r', 'echo implode(",", get_loaded_extensions());'))
+            if ($out -match 'Warning|Unable to load') { throw $out }
+            $missing = $exts | Where-Object { $out -notmatch "(^|,)$_(,|$)" }
+            if ($missing) { throw "not loaded: $($missing -join ', ')" }
+            "$($exts.Count) loaded"
+        }
+    }
     default { $results.Add("| $Package | ✗ no smoke test |"); $failed = $true }
 }
 

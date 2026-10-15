@@ -3,7 +3,7 @@
 # Flock downloads https://github.com/<repo>/releases/download/manifest/manifest.json (+ .sig).
 #   php-macos  PHP for macOS (build-php-macos.yml)
 #   builds     services built from source: PostgreSQL, MariaDB (macOS), Valkey, Redis (build-service.yml)
-#   mirrors    services mirrored from their vendor: MySQL, MongoDB, Node.js, ... (mirror.yml)
+#   mirrors    mirrored from the vendor: PHP for Windows, MySQL, MongoDB, Node.js, ... (mirror.yml)
 name: Release
 
 on:

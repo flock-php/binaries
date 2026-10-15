@@ -87,6 +87,26 @@ func runPlan(args []string) error {
 	}
 
 	builds, mirrors := []build{}, []build{}
+	// Windows PHP: the version windows.php.net has a build of, which can trail php.net by a day.
+	if selected("php") && *only == "" && len(v.PHP.Windows.Minors) > 0 {
+		vers, err := latestWindowsPHP(v.PHP.Windows.Minors)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "::warning::php windows: %v\n", err)
+		}
+		for _, minor := range v.PHP.Windows.Minors {
+			ver, ok := vers[minor]
+			if !ok {
+				if err == nil {
+					fmt.Fprintf(os.Stderr, "::warning::php windows: no build of PHP %s on windows.php.net\n", minor)
+				}
+				continue
+			}
+			if b := (build{Package: "php", Version: ver, Platform: "windows-x64", Build: v.PHP.Windows.Build}); needed(b) {
+				mirrors = append(mirrors, b)
+			}
+		}
+	}
+
 	for _, name := range v.packageNames() {
 		if !selected(name) {
 			continue
@@ -135,6 +155,24 @@ func runPlan(args []string) error {
 		return err
 	}
 	return nil
+}
+
+// latestWindowsPHP returns the version of each minor that windows.php.net's releases.json lists
+// a build for.
+func latestWindowsPHP(minors []string) (map[string]string, error) {
+	var r map[string]struct {
+		Version string `json:"version"`
+	}
+	if err := getJSON("https://downloads.php.net/~windows/releases/releases.json", &r); err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, minor := range minors {
+		if e, ok := r[minor]; ok && inLine(e.Version, minor) {
+			out[minor] = e.Version
+		}
+	}
+	return out, nil
 }
 
 // latestPHP returns the newest release of a PHP minor according to php.net.

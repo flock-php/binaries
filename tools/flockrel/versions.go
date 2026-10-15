@@ -19,6 +19,11 @@ type versions struct {
 			StaticExtensions string `json:"static_extensions"`
 			SharedExtensions string `json:"shared_extensions"`
 		} `json:"macos"`
+		// Windows mirrors the official thread-safe x64 builds from windows.php.net.
+		Windows struct {
+			Build  int      `json:"build"`
+			Minors []string `json:"minors"`
+		} `json:"windows"`
 	} `json:"php"`
 	// Packages are the services next to PHP: for each release line, the newest upstream
 	// version is built from source or mirrored, per platform.

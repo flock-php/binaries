@@ -28,6 +28,7 @@ last one it accepted. Every package is then checked against the manifest's SHA-2
 | Package | Platforms | Workflow |
 |---|---|---|
 | PHP (cli + fpm, extensions compiled in, optional extensions in `ext/`) | macOS arm64 (13+) | `build-php-macos.yml` |
+| PHP, the official thread-safe build from windows.php.net, mirrored | Windows x64 | `mirror.yml` |
 | PostgreSQL (server, client tools, contrib), built | macOS arm64, Windows x64 | `build-service.yml` |
 | MariaDB, built | macOS arm64 | `build-service.yml` |
 | Valkey, built | macOS arm64, Windows x64 (MSYS2) | `build-service.yml` |

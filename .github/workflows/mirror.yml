@@ -1,4 +1,4 @@
-# Mirrors one upstream release of a service (MySQL, MongoDB, Node.js, ...) for one platform:
+# Mirrors one upstream release (MySQL, MongoDB, Node.js, PHP for Windows, ...) for one platform:
 # downloads it, checks it against the vendor's checksum or signature (packages/<package>/mirror.sh),
 # smoke-tests it on that platform (and the vendor's code signature, where versions.json sets a
 # SIGNER), and publishes it as <package>-<version>-build<N>-<platform>.<ext> on the
@@ -60,7 +60,10 @@ jobs:
       - uses: actions/checkout@v7
       - id: config
         run: |
-          build="$(jq -r --arg p "$PKG" --arg pl "$PLATFORM" '.packages[$p].platforms[$pl] | select(.how == "mirror") | .build' versions.json)"
+          # PHP for Windows is configured next to PHP for macOS, not under packages.
+          build="$(jq -r --arg p "$PKG" --arg pl "$PLATFORM" '
+            if $p == "php" and $pl == "windows-x64" then .php.windows.build
+            else .packages[$p].platforms[$pl] | select(.how == "mirror") | .build end' versions.json)"
           [[ -n "$build" ]] || { echo "::error::versions.json doesn't mirror $PKG for $PLATFORM"; exit 1; }
           ext=tar.gz; [[ "$PLATFORM" == windows-* ]] && ext=zip
           echo "asset=$PKG-$VERSION-build$build-$PLATFORM.$ext" >> "$GITHUB_OUTPUT"
