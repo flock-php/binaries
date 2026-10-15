@@ -71,11 +71,11 @@ case "$PKG" in
       server="$D/bin/mysqld"; client="$D/bin/mysql"; admin="$D/bin/mysqladmin"; extra=(--mysqlx=OFF)
     fi
     "$server" --no-defaults --basedir="$D" --datadir="$data" --port=33069 --bind-address=127.0.0.1 \
-      --socket="$tmp/sql.sock" "${extra[@]}" >"$tmp/log" 2>&1 &
+      --socket="$tmp/sql.sock" ${extra[@]+"${extra[@]}"} >"$tmp/log" 2>&1 &
     pid=$!
     wait_port 33069 || fail "server did not start: $(tail -5 "$tmp/log")"
     sql=("$client" --no-defaults -h127.0.0.1 -P33069 -uroot)
-    check "query: $("${sql[@]}" -N -e 'select version()' 2>&1)" "${sql[@]}" \
+    check "query: $("${sql[@]}" -N -e 'select version()' 2>/dev/null)" "${sql[@]}" \
       -e 'create database flock; create table flock.t (id int primary key, v json) engine=innodb; insert into flock.t values (1, json_object("a", 1)); select * from flock.t'
     check "shutdown" "$admin" --no-defaults -h127.0.0.1 -P33069 -uroot shutdown
     wait "$pid"

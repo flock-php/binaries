@@ -104,10 +104,19 @@ jobs:
         run: |
           choco install winflexbison3 --no-progress
           pip install meson ninja
+      # Its own bash step: run from PowerShell inside build.ps1, Git's bash never returned.
+      - name: Source
+        if: runner.os == 'Windows' && inputs.package == 'postgres'
+        shell: bash
+        run: |
+          mkdir -p postgres-work/src
+          bash packages/postgres/source.sh "$VERSION" postgres-work/postgresql.tar.bz2
+          tar --force-local -xjf postgres-work/postgresql.tar.bz2 -C postgres-work/src --strip-components 1
       - name: Build
         if: runner.os == 'Windows' && inputs.package == 'postgres'
         shell: pwsh
-        run: ./packages/postgres/windows/build.ps1 -Version $env:VERSION -Out out
+        timeout-minutes: 90
+        run: ./packages/postgres/windows/build.ps1 -Version $env:VERSION -Source postgres-work/src -Out out
 
       - name: Package
         shell: bash

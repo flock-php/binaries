@@ -3,36 +3,29 @@
 # 14 and 15 only have the older MSVC build scripts (src/tools/msvc).
 # Run in a Visual Studio developer shell with Strawberry Perl, winflexbison and (16+) meson and
 # ninja on PATH: see build-service.yml.
-# Usage: packages/postgres/windows/build.ps1 -Version <x.y> -Out <dir>
+# -Source is the unpacked, verified source (packages/postgres/source.sh), prepared by a bash step:
+# run from here, Git's bash never handed control back on the runners.
+# Usage: packages/postgres/windows/build.ps1 -Version <x.y> -Source <dir> -Out <dir>
 param(
     [Parameter(Mandatory)] [string] $Version,
+    [Parameter(Mandatory)] [string] $Source,
     [Parameter(Mandatory)] [string] $Out
 )
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
-$root = Resolve-Path (Join-Path $PSScriptRoot '../../..')
 $work = Join-Path $PWD 'postgres-work'
 New-Item -ItemType Directory -Force $work | Out-Null
 $Out = [IO.Path]::GetFullPath($Out)
 $major = [int]$Version.Split('.')[0]
 
-Write-Output '::group::OpenSSL and zlib (vcpkg)'
+$src = (Resolve-Path $Source).Path
+if (-not (Test-Path (Join-Path $src 'COPYRIGHT'))) { throw "$src is not a PostgreSQL source tree" }
+
+Write-Output "::group::OpenSSL and zlib (vcpkg) $(Get-Date -Format HH:mm:ss)"
 $vcpkgRoot = Join-Path $work 'vcpkg'
 & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install openssl zlib --triplet x64-windows "--x-install-root=$vcpkgRoot"
 $deps = Join-Path $vcpkgRoot 'x64-windows'
-Write-Output '::endgroup::'
-
-Write-Output "::group::Source $Version"
-# Git's bash, not WSL's (C:\Windows\System32\bash.exe comes first on PATH).
-& "$env:ProgramFiles/Git/bin/bash.exe" (Join-Path $root 'packages/postgres/source.sh') $Version "$work/postgresql.tar.bz2"
-$src = Join-Path $work 'src'
-if (Test-Path $src) { Remove-Item -Recurse -Force $src }
-New-Item -ItemType Directory $src | Out-Null
-# Windows' own tar (bsdtar): GNU tar from Git, which can come first on PATH, takes D:\... for a
-# remote host:path and waits for it forever.
-& "$env:SystemRoot/System32/tar.exe" -xjf "$work/postgresql.tar.bz2" -C $src --strip-components 1
-if ($LASTEXITCODE) { throw 'could not unpack the PostgreSQL source' }
 Write-Output '::endgroup::'
 
 # winflexbison installs win_bison/win_flex; the MSVC scripts (14, 15) call bison and flex.
@@ -47,7 +40,7 @@ $env:PATH = "$tools;$env:PATH"
 
 if (Test-Path $Out) { Remove-Item -Recurse -Force $Out }
 if ($major -ge 16) {
-    Write-Output '::group::meson setup'
+    Write-Output "::group::meson setup $(Get-Date -Format HH:mm:ss)"
     $env:PKG_CONFIG_PATH = Join-Path $deps 'lib/pkgconfig'
     $env:CMAKE_PREFIX_PATH = $deps
     meson setup (Join-Path $work 'build') $src --prefix=$Out --buildtype=release `
@@ -56,12 +49,12 @@ if ($major -ge 16) {
         -Dgssapi=disabled -Dldap=disabled -Dlibxml=disabled -Dlibxslt=disabled -Duuid=none `
         "-Dextra_include_dirs=$deps/include" "-Dextra_lib_dirs=$deps/lib"
     Write-Output '::endgroup::'
-    Write-Output '::group::Build'
+    Write-Output "::group::Build $(Get-Date -Format HH:mm:ss)"
     meson compile -C (Join-Path $work 'build')
     meson install -C (Join-Path $work 'build') --quiet
     Write-Output '::endgroup::'
 } else {
-    Write-Output '::group::MSVC build scripts'
+    Write-Output "::group::MSVC build scripts $(Get-Date -Format HH:mm:ss)"
     # The scripts look for zlib as lib\zdll.lib and run bin\openssl.exe to learn its version.
     Copy-Item (Join-Path $deps 'lib/zlib.lib') (Join-Path $deps 'lib/zdll.lib') -Force
     Copy-Item (Join-Path $deps 'tools/openssl/openssl.exe') (Join-Path $deps 'bin/openssl.exe') -Force
