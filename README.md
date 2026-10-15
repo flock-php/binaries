@@ -1,6 +1,7 @@
 # Flock binaries
 
-Prebuilt PHP, PostgreSQL and Valkey for [Flock](https://github.com/flock-php/flock), built
+Prebuilt PHP and services (PostgreSQL, MariaDB, MySQL, MongoDB, Valkey, Redis, Meilisearch,
+Typesense, RustFS, Node.js) for [Flock](https://github.com/flock-php/flock), built
 reproducibly on GitHub Actions and published as GitHub Releases. Flock downloads them from a
 signed manifest, so nothing has to be compiled on your machine.
 
@@ -27,6 +28,23 @@ last one it accepted. Every package is then checked against the manifest's SHA-2
 | Package | Platforms | Workflow |
 |---|---|---|
 | PHP (cli + fpm, extensions compiled in, optional extensions in `ext/`) | macOS arm64 (13+) | `build-php-macos.yml` |
+| PostgreSQL (server, client tools, contrib), built | macOS arm64, Windows x64 | `build-service.yml` |
+| MariaDB, built | macOS arm64 | `build-service.yml` |
+| Valkey, built | macOS arm64, Windows x64 (MSYS2) | `build-service.yml` |
+| Redis, built | macOS arm64 | `build-service.yml` |
+| MySQL, MongoDB, Meilisearch (Community Edition), RustFS, Node.js, mirrored | macOS arm64, Windows x64 | `mirror.yml` |
+| MariaDB, mirrored | Windows x64 | `mirror.yml` |
+| Typesense, mirrored | macOS arm64 | `mirror.yml` |
+
+Services are tracked by release line in `versions.json` (`packages.<name>.lines`): every day the
+newest upstream version of each line is looked up (`tools/flockrel/upstream.go`) and built or
+mirrored when it isn't published yet. Mirrored packages are the vendor's own binaries, checked
+against the vendor's checksum or signature in `packages/<name>/mirror.sh` (and, for MySQL, MongoDB
+and Node.js, the vendor's code signature on the binaries), and published unchanged unless upstream
+ships a bare executable without its license (Meilisearch, RustFS, Typesense), which is then packed
+together with it. For GPL, SSPL and AGPL software the matching upstream source is published on the
+same release as `<name>-<version>-source.tar.gz`. Meilisearch is only ever mirrored as its MIT
+Community Edition, never the BUSL `meilisearch-enterprise-*` builds.
 
 Run a build workflow by hand to test a version without publishing it.
 
@@ -53,11 +71,16 @@ become release workflows:
 ## Layout
 
 ```
-versions.json                 what we build: PHP minors, static-php-cli, extensions, manifest expiry
+versions.json                 what we build: PHP minors, static-php-cli, extensions, service lines, manifest expiry
 tools/flockrel/               release tooling: plan, manifest (build + sign), verify, keygen
-packages/<name>/<platform>/   build or packaging script per package and platform
+packages/<name>/<platform>/   build script per package and platform
+packages/<name>/mirror.sh     download + verify a vendor release (mirrored packages)
+packages/<name>/source.sh     download + verify the upstream source (builds, and published for copyleft)
+scripts/macos/                static OpenSSL build, relocation of macOS installs (@loader_path)
+scripts/publish.sh            upload a package (and its source) to its release
 scripts/verify-macos.sh       fails when a Mach-O file links outside macOS or targets macOS > 13
 scripts/smoke-*.sh|ps1        smoke tests run against every package before it is published
+scripts/windows/smoke-service.ps1  the same for services on Windows
 ```
 
 ## Licenses
