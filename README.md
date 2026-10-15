@@ -72,7 +72,7 @@ become release workflows:
 ## Layout
 
 ```
-versions.json                 what we build: PHP minors, static-php-cli, extensions, service lines, manifest expiry
+versions.json                 what we build: PHP minors per platform, static-php-cli, extensions, service lines, manifest expiry
 tools/flockrel/               release tooling: plan, manifest (build + sign), verify, keygen
 packages/<name>/<platform>/   build script per package and platform
 packages/<name>/mirror.sh     download + verify a vendor release (mirrored packages)

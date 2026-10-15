@@ -10,14 +10,15 @@ import (
 
 // versions mirrors versions.json, the single place where what we build is pinned.
 type versions struct {
+	// PHP is configured per platform: which minors, and how each is built or mirrored.
 	PHP struct {
-		Minors []string `json:"minors"`
-		MacOS  struct {
-			Build            int    `json:"build"`
-			SPC              string `json:"spc"`
-			MinOS            string `json:"min_os"`
-			StaticExtensions string `json:"static_extensions"`
-			SharedExtensions string `json:"shared_extensions"`
+		MacOS struct {
+			Minors           []string `json:"minors"`
+			Build            int      `json:"build"`
+			SPC              string   `json:"spc"`
+			MinOS            string   `json:"min_os"`
+			StaticExtensions string   `json:"static_extensions"`
+			SharedExtensions string   `json:"shared_extensions"`
 		} `json:"macos"`
 		// Windows mirrors the official thread-safe x64 builds from windows.php.net.
 		Windows struct {

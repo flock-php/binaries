@@ -70,7 +70,7 @@ func runPlan(args []string) error {
 		if *only != "" {
 			phpVersions = strings.Split(*only, ",")
 		} else {
-			for _, minor := range v.PHP.Minors {
+			for _, minor := range v.PHP.MacOS.Minors {
 				latest, err := latestPHP(minor)
 				if err != nil {
 					return err
