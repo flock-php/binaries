@@ -1,6 +1,9 @@
 # Daily: builds and publishes every package version in versions.json that isn't published yet,
 # then rebuilds and signs the manifest (also when nothing new was built, so it never expires).
 # Flock downloads https://github.com/<repo>/releases/download/manifest/manifest.json (+ .sig).
+#   php-macos  PHP for macOS (build-php-macos.yml)
+#   builds     services built from source: PostgreSQL, MariaDB (macOS), Valkey, Redis (build-service.yml)
+#   mirrors    services mirrored from their vendor: MySQL, MongoDB, Node.js, ... (mirror.yml)
 name: Release
 
 on:
@@ -10,6 +13,9 @@ on:
     inputs:
       php:
         description: Only these PHP versions, comma-separated (default the newest of each minor)
+        default: ""
+      packages:
+        description: Only these packages, comma-separated, "php" for PHP (default all)
         default: ""
 
 permissions:
@@ -25,6 +31,8 @@ jobs:
     outputs:
       any: ${{ steps.plan.outputs.any }}
       php_macos: ${{ steps.plan.outputs.php_macos }}
+      builds: ${{ steps.plan.outputs.builds }}
+      mirrors: ${{ steps.plan.outputs.mirrors }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -35,7 +43,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PHP: ${{ inputs.php }}
-        run: go -C tools/flockrel run . plan -versions ../../versions.json -php "$PHP"
+          PACKAGES: ${{ inputs.packages }}
+        run: go -C tools/flockrel run . plan -versions ../../versions.json -php "$PHP" -packages "$PACKAGES"
 
   php-macos:
     needs: plan
@@ -51,8 +60,42 @@ jobs:
       version: ${{ matrix.version }}
       publish: true
 
+  builds:
+    needs: plan
+    if: needs.plan.outputs.builds != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.builds) }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-service.yml
+    with:
+      package: ${{ matrix.package }}
+      version: ${{ matrix.version }}
+      platform: ${{ matrix.platform }}
+      publish: true
+
+  mirrors:
+    needs: plan
+    if: needs.plan.outputs.mirrors != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.mirrors) }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/mirror.yml
+    with:
+      package: ${{ matrix.package }}
+      version: ${{ matrix.version }}
+      platform: ${{ matrix.platform }}
+      publish: true
+
   manifest:
-    needs: [plan, php-macos]
+    needs: [plan, php-macos, builds, mirrors]
     # Also after failed builds: whatever did get published belongs in the manifest.
     if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-latest

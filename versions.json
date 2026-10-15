@@ -9,6 +9,88 @@
       "shared_extensions": "xdebug,imagick,pcov,mongodb,memcached"
     }
   },
+  "packages": {
+    "postgres": {
+      "lines": ["14", "15", "16", "17", "18"],
+      "platforms": {
+        "macos-arm64": { "how": "build", "build": 1 },
+        "windows-x64": { "how": "build", "build": 1 }
+      },
+      "env": { "OPENSSL_VERSION": "3.5.9", "MIN_OS": "13.0" }
+    },
+    "mariadb": {
+      "lines": ["10.11", "11.4", "11.8", "12.3"],
+      "platforms": {
+        "macos-arm64": { "how": "build", "build": 1 },
+        "windows-x64": { "how": "mirror", "build": 1 }
+      },
+      "env": { "OPENSSL_VERSION": "3.5.9", "MIN_OS": "13.0" },
+      "publish_source": true
+    },
+    "valkey": {
+      "lines": ["9.1"],
+      "platforms": {
+        "macos-arm64": { "how": "build", "build": 1 },
+        "windows-x64": { "how": "build", "build": 1 }
+      },
+      "env": { "MIN_OS": "13.0" }
+    },
+    "redis": {
+      "lines": ["7.2", "7.4", "8.4", "8.10"],
+      "platforms": {
+        "macos-arm64": { "how": "build", "build": 1 }
+      },
+      "env": { "MIN_OS": "13.0" },
+      "publish_source": true
+    },
+    "mysql": {
+      "lines": ["8.0", "8.4", "9.7"],
+      "platforms": {
+        "macos-arm64": { "how": "mirror", "build": 1 },
+        "windows-x64": { "how": "mirror", "build": 1 }
+      },
+      "env": { "SIGNER": "Oracle" },
+      "publish_source": true
+    },
+    "mongodb": {
+      "lines": ["7.0", "8.0", "9.0"],
+      "platforms": {
+        "macos-arm64": { "how": "mirror", "build": 1 },
+        "windows-x64": { "how": "mirror", "build": 1 }
+      },
+      "env": { "SIGNER": "MongoDB" },
+      "publish_source": true
+    },
+    "meilisearch": {
+      "lines": ["1"],
+      "platforms": {
+        "macos-arm64": { "how": "mirror", "build": 1 },
+        "windows-x64": { "how": "mirror", "build": 1 }
+      }
+    },
+    "typesense": {
+      "lines": ["29", "30"],
+      "platforms": {
+        "macos-arm64": { "how": "mirror", "build": 1 }
+      },
+      "publish_source": true
+    },
+    "rustfs": {
+      "lines": ["1"],
+      "platforms": {
+        "macos-arm64": { "how": "mirror", "build": 1 },
+        "windows-x64": { "how": "mirror", "build": 1 }
+      }
+    },
+    "node": {
+      "lines": ["16", "18", "20", "22", "24", "26"],
+      "platforms": {
+        "macos-arm64": { "how": "mirror", "build": 1 },
+        "windows-x64": { "how": "mirror", "build": 1 }
+      },
+      "env": { "SIGNER": "Node.js|OpenJS" }
+    }
+  },
   "manifest": {
     "expires_days": 30
   }

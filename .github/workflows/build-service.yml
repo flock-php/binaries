@@ -1,0 +1,190 @@
+# Builds one release of a service (PostgreSQL, MariaDB, Valkey, Redis) from source for one
+# platform with packages/<package>/<os>/build.*, checks it (portability on macOS), smoke-tests it
+# on a clean runner, and publishes it as <package>-<version>-build<N>-<platform>.<ext> on the
+# <package>-<version> release, next to the upstream source when the license asks for it.
+# Called by release.yml for every version without that build yet; run it by hand to test.
+# Nothing is published unless every check passed, and a published asset is never replaced.
+name: Build service
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        type: string
+        required: true
+      version:
+        type: string
+        required: true
+      platform:
+        type: string
+        required: true
+      publish:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package (versions.json)
+        required: true
+      version:
+        description: Upstream version
+        required: true
+      platform:
+        description: Platform
+        type: choice
+        options: [macos-arm64, windows-x64]
+      publish:
+        description: Publish the package as a release asset
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  PKG: ${{ inputs.package }}
+  VERSION: ${{ inputs.version }}
+  PLATFORM: ${{ inputs.platform }}
+
+jobs:
+  build:
+    name: build ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
+    runs-on: ${{ inputs.platform == 'windows-x64' && 'windows-2022' || 'macos-15' }}
+    timeout-minutes: 180
+    outputs:
+      asset: ${{ steps.config.outputs.asset }}
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: config
+        shell: bash
+        run: |
+          build="$(jq -r --arg p "$PKG" --arg pl "$PLATFORM" '.packages[$p].platforms[$pl] | select(.how == "build") | .build' versions.json)"
+          [[ -n "$build" ]] || { echo "::error::versions.json doesn't build $PKG for $PLATFORM"; exit 1; }
+          ext=tar.gz; [[ "$PLATFORM" == windows-* ]] && ext=zip
+          echo "BUILD=$build" >> "$GITHUB_ENV"
+          echo "asset=$PKG-$VERSION-build$build-$PLATFORM.$ext" >> "$GITHUB_OUTPUT"
+          jq -r --arg p "$PKG" '.packages[$p].env // {} | to_entries[] | "\(.key)=\(.value)"' versions.json >> "$GITHUB_ENV"
+
+      # macOS: the static OpenSSL only changes with its version.
+      - name: Cache OpenSSL
+        if: runner.os == 'macOS' && env.OPENSSL_VERSION != ''
+        uses: actions/cache@v6
+        with:
+          path: ${{ inputs.package }}-work/openssl
+          key: openssl-${{ env.OPENSSL_VERSION }}-macos-arm64-${{ env.MIN_OS }}
+
+      - name: Build
+        if: runner.os == 'macOS'
+        run: MACOSX_DEPLOYMENT_TARGET="$MIN_OS" bash "packages/$PKG/macos/build.sh" "$VERSION" out
+
+      - name: Portability (otool)
+        if: runner.os == 'macOS'
+        run: bash scripts/verify-macos.sh out "$MIN_OS" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Windows Valkey: MSYS2 provides fork() (packages/valkey/windows/build.sh).
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows' && inputs.package == 'valkey'
+        with:
+          msystem: MSYS
+          update: true
+          install: gcc make pkg-config curl tar
+      - name: Build
+        if: runner.os == 'Windows' && inputs.package == 'valkey'
+        shell: msys2 {0}
+        run: bash packages/valkey/windows/build.sh "$VERSION" out
+
+      # Windows PostgreSQL: MSVC, with meson (16+) or the MSVC build scripts (14, 15).
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows' && inputs.package == 'postgres'
+      - name: Build tools
+        if: runner.os == 'Windows' && inputs.package == 'postgres'
+        run: |
+          choco install winflexbison3 --no-progress
+          pip install meson ninja
+      - name: Build
+        if: runner.os == 'Windows' && inputs.package == 'postgres'
+        shell: pwsh
+        run: ./packages/postgres/windows/build.ps1 -Version $env:VERSION -Out out
+
+      - name: Package
+        shell: bash
+        env:
+          ASSET: ${{ steps.config.outputs.asset }}
+        run: |
+          [[ -d out ]] || { echo "::error::no build for $PKG on $PLATFORM"; exit 1; }
+          jq -n --arg package "$PKG" --arg version "$VERSION" --argjson build "$BUILD" --arg platform "$PLATFORM" \
+                --arg commit "$GITHUB_SHA" --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                --argjson env "$(jq --arg p "$PKG" '.packages[$p].env // {}' versions.json)" \
+            '{package: $package, version: $version, build: $build, platform: $platform, built: $built,
+              commit: $commit, settings: $env}' > out/flock-package.json
+          if [[ "$ASSET" == *.zip ]]; then
+            (cd out && 7z a -tzip -bd "../$ASSET" . >/dev/null)
+          else
+            tar -C out -czf "$ASSET" .
+          fi
+          echo "$(sha256sum "$ASSET" 2>/dev/null || shasum -a 256 "$ASSET")  ($(du -h "$ASSET" | cut -f1))" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.config.outputs.asset }}
+          path: ${{ steps.config.outputs.asset }}
+          retention-days: 7
+
+  # A clean runner: on macOS the oldest Apple Silicon image with Homebrew moved away (closest to
+  # a user's Mac); on Windows without MSYS2 runtimes on PATH, so only the bundled DLLs are used.
+  test:
+    name: run ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
+    needs: build
+    runs-on: ${{ inputs.platform == 'windows-x64' && 'windows-2022' || 'macos-14' }}
+    timeout-minutes: 20
+    env:
+      ASSET: ${{ needs.build.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ASSET }}
+      - name: Hide Homebrew
+        if: runner.os == 'macOS'
+        run: sudo mv /opt/homebrew /opt/homebrew.hidden
+      - name: Smoke test
+        if: runner.os == 'macOS'
+        run: bash scripts/smoke-service.sh "$PKG" "$ASSET"
+      - name: Remove other MSYS runtimes from PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $clean = ($env:PATH -split ';' | Where-Object { $_ -and -not (Test-Path (Join-Path $_ 'msys-2.0.dll')) }) -join ';'
+          Add-Content $env:GITHUB_ENV "PATH=$clean"
+      - name: Smoke test
+        if: runner.os == 'Windows' && inputs.package == 'valkey'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory pkg | Out-Null
+          tar -xf $env:ASSET -C pkg
+          ./scripts/smoke-valkey.ps1 -Dir pkg
+      - name: Smoke test
+        if: runner.os == 'Windows' && inputs.package != 'valkey'
+        shell: pwsh
+        run: ./scripts/windows/smoke-service.ps1 -Package $env:PKG -Archive $env:ASSET
+
+  publish:
+    needs: [build, test]
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      GITHUB_TOKEN: ${{ github.token }}
+      ASSET: ${{ needs.build.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ASSET }}
+      - run: bash scripts/publish.sh "$PKG" "$VERSION" "$ASSET"

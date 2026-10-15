@@ -1,0 +1,122 @@
+# Mirrors one upstream release of a service (MySQL, MongoDB, Node.js, ...) for one platform:
+# downloads it, checks it against the vendor's checksum or signature (packages/<package>/mirror.sh),
+# smoke-tests it on that platform (and the vendor's code signature, where versions.json sets a
+# SIGNER), and publishes it as <package>-<version>-build<N>-<platform>.<ext> on the
+# <package>-<version> release, next to the upstream source when the license asks for it.
+# Called by release.yml for every version without that build yet; run it by hand to test.
+# Nothing is published unless every check passed, and a published asset is never replaced.
+name: Mirror
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        type: string
+        required: true
+      version:
+        type: string
+        required: true
+      platform:
+        type: string
+        required: true
+      publish:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package (versions.json)
+        required: true
+      version:
+        description: Upstream version
+        required: true
+      platform:
+        description: Platform
+        type: choice
+        options: [macos-arm64, windows-x64]
+      publish:
+        description: Publish the package as a release asset
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  PKG: ${{ inputs.package }}
+  VERSION: ${{ inputs.version }}
+  PLATFORM: ${{ inputs.platform }}
+
+jobs:
+  fetch:
+    name: fetch ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      asset: ${{ steps.config.outputs.asset }}
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: config
+        run: |
+          build="$(jq -r --arg p "$PKG" --arg pl "$PLATFORM" '.packages[$p].platforms[$pl] | select(.how == "mirror") | .build' versions.json)"
+          [[ -n "$build" ]] || { echo "::error::versions.json doesn't mirror $PKG for $PLATFORM"; exit 1; }
+          ext=tar.gz; [[ "$PLATFORM" == windows-* ]] && ext=zip
+          echo "asset=$PKG-$VERSION-build$build-$PLATFORM.$ext" >> "$GITHUB_OUTPUT"
+      - name: Download and verify
+        env:
+          ASSET: ${{ steps.config.outputs.asset }}
+        run: |
+          bash "packages/$PKG/mirror.sh" "$VERSION" "$PLATFORM" "$ASSET" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "$(sha256sum "$ASSET")  ($(du -h "$ASSET" | cut -f1))" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.config.outputs.asset }}
+          path: ${{ steps.config.outputs.asset }}
+          retention-days: 7
+
+  test:
+    name: run ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
+    needs: fetch
+    runs-on: ${{ inputs.platform == 'windows-x64' && 'windows-2022' || 'macos-15' }}
+    timeout-minutes: 20
+    env:
+      ASSET: ${{ needs.fetch.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ASSET }}
+      - name: Package settings
+        shell: bash
+        run: jq -r --arg p "$PKG" '.packages[$p].env // {} | to_entries[] | "\(.key)=\(.value)"' versions.json >> "$GITHUB_ENV"
+      # Like a user's Mac: nothing from Homebrew to fall back on.
+      - name: Hide Homebrew
+        if: runner.os == 'macOS'
+        run: sudo mv /opt/homebrew /opt/homebrew.hidden
+      - name: Smoke test
+        if: runner.os == 'macOS'
+        run: bash scripts/smoke-service.sh "$PKG" "$ASSET"
+      - name: Smoke test
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/windows/smoke-service.ps1 -Package $env:PKG -Archive $env:ASSET
+
+  publish:
+    needs: [fetch, test]
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      GITHUB_TOKEN: ${{ github.token }}
+      ASSET: ${{ needs.fetch.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ASSET }}
+      - run: bash scripts/publish.sh "$PKG" "$VERSION" "$ASSET"

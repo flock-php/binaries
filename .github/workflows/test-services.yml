@@ -1,0 +1,52 @@
+# TEMPORARY (services branch only): runs every service build and mirror without publishing.
+name: "Test: services"
+
+on:
+  push:
+    branches: [services]
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      builds: ${{ steps.plan.outputs.builds }}
+      mirrors: ${{ steps.plan.outputs.mirrors }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/flockrel/go.mod
+          cache: false
+      - id: plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: go -C tools/flockrel run . plan -versions ../../versions.json -packages postgres,mariadb,valkey,redis,mysql,mongodb,meilisearch,typesense,rustfs,node
+
+  builds:
+    needs: plan
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.builds) }}
+    uses: ./.github/workflows/build-service.yml
+    with:
+      package: ${{ matrix.package }}
+      version: ${{ matrix.version }}
+      platform: ${{ matrix.platform }}
+
+  mirrors:
+    needs: plan
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.mirrors) }}
+    uses: ./.github/workflows/mirror.yml
+    with:
+      package: ${{ matrix.package }}
+      version: ${{ matrix.version }}
+      platform: ${{ matrix.platform }}

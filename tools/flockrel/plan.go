@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// build is one package version to build for one platform.
+// build is one package version to build (or mirror) for one platform.
 type build struct {
 	Package  string `json:"package"`
 	Version  string `json:"version"`
@@ -19,17 +19,26 @@ type build struct {
 // runPlan prints, and writes to $GITHUB_OUTPUT, the builds whose release asset doesn't exist yet:
 //
 //	php_macos=[{"package":"php","version":"8.4.26","platform":"macos-arm64","build":1}, ...]
+//	builds=[{"package":"postgres","version":"18.6","platform":"windows-x64","build":1}, ...]
+//	mirrors=[{"package":"mysql","version":"8.4.11","platform":"macos-arm64","build":1}, ...]
 //	any=true|false
+//
+// A package whose upstream versions can't be looked up is reported (a workflow warning) and
+// skipped; the other packages are still planned.
 func runPlan(args []string) error {
 	fs := flag.NewFlagSet("plan", flag.ExitOnError)
 	versionsPath := fs.String("versions", "versions.json", "versions file")
 	repo := fs.String("repo", os.Getenv("GITHUB_REPOSITORY"), "owner/name of the binaries repository")
 	only := fs.String("php", "", "comma-separated PHP versions to plan instead of the newest of each minor")
+	pkgs := fs.String("packages", "", "comma-separated packages to plan (default all; \"php\" is PHP)")
 	fs.Parse(args)
 
 	v, err := loadVersions(*versionsPath)
 	if err != nil {
 		return err
+	}
+	selected := func(name string) bool {
+		return *pkgs == "" || strings.Contains(","+*pkgs+",", ","+name+",")
 	}
 	releases, err := listReleases(*repo)
 	if err != nil {
@@ -44,42 +53,85 @@ func runPlan(args []string) error {
 			}
 		}
 	}
-
-	var phpVersions []string
-	if *only != "" {
-		phpVersions = strings.Split(*only, ",")
-	} else {
-		for _, minor := range v.PHP.Minors {
-			latest, err := latestPHP(minor)
-			if err != nil {
-				return err
-			}
-			phpVersions = append(phpVersions, latest)
+	// needed reports whether b isn't published yet, and logs the decision.
+	needed := func(b build) bool {
+		name := assetName(b.Package, b.Version, b.Build, b.Platform, platformExt[b.Platform])
+		if newest[b.Package+"-"+b.Version+" "+b.Platform] >= b.Build {
+			fmt.Fprintf(os.Stderr, "published  %s\n", name)
+			return false
 		}
+		fmt.Fprintf(os.Stderr, "to build   %s\n", name)
+		return true
 	}
 
 	phpMacOS := []build{}
-	for _, ver := range phpVersions {
-		b := build{Package: "php", Version: strings.TrimSpace(ver), Platform: "macos-arm64", Build: v.PHP.MacOS.Build}
-		name := assetName(b.Package, b.Version, b.Build, b.Platform, "tar.gz")
-		if newest[b.Package+"-"+b.Version+" "+b.Platform] >= b.Build {
-			fmt.Fprintf(os.Stderr, "published  %s\n", name)
-			continue
+	if selected("php") {
+		var phpVersions []string
+		if *only != "" {
+			phpVersions = strings.Split(*only, ",")
+		} else {
+			for _, minor := range v.PHP.Minors {
+				latest, err := latestPHP(minor)
+				if err != nil {
+					return err
+				}
+				phpVersions = append(phpVersions, latest)
+			}
 		}
-		fmt.Fprintf(os.Stderr, "to build   %s\n", name)
-		phpMacOS = append(phpMacOS, b)
+		for _, ver := range phpVersions {
+			b := build{Package: "php", Version: strings.TrimSpace(ver), Platform: "macos-arm64", Build: v.PHP.MacOS.Build}
+			if needed(b) {
+				phpMacOS = append(phpMacOS, b)
+			}
+		}
 	}
 
-	matrix, _ := json.Marshal(phpMacOS)
-	out := fmt.Sprintf("php_macos=%s\nany=%t\n", matrix, len(phpMacOS) > 0)
-	fmt.Print(out)
+	builds, mirrors := []build{}, []build{}
+	for _, name := range v.packageNames() {
+		if !selected(name) {
+			continue
+		}
+		p := v.Packages[name]
+		vers, problems := latestVersions(name, p)
+		for _, msg := range problems {
+			fmt.Fprintf(os.Stderr, "::warning::%s\n", msg)
+		}
+		for _, ver := range vers {
+			for _, platform := range []string{"macos-arm64", "windows-x64"} {
+				c, ok := p.Platforms[platform]
+				if !ok {
+					continue
+				}
+				b := build{Package: name, Version: ver, Platform: platform, Build: c.Build}
+				if !needed(b) {
+					continue
+				}
+				if c.How == "build" {
+					builds = append(builds, b)
+				} else {
+					mirrors = append(mirrors, b)
+				}
+			}
+		}
+	}
+
+	var out strings.Builder
+	for _, o := range []struct {
+		name string
+		list []build
+	}{{"php_macos", phpMacOS}, {"builds", builds}, {"mirrors", mirrors}} {
+		j, _ := json.Marshal(o.list)
+		fmt.Fprintf(&out, "%s=%s\n", o.name, j)
+	}
+	fmt.Fprintf(&out, "any=%t\n", len(phpMacOS)+len(builds)+len(mirrors) > 0)
+	fmt.Print(out.String())
 	if path := os.Getenv("GITHUB_OUTPUT"); path != "" {
 		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
-		_, err = f.WriteString(out)
+		_, err = f.WriteString(out.String())
 		return err
 	}
 	return nil

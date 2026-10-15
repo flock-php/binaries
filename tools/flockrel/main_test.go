@@ -76,3 +76,22 @@ func TestSignAndVerify(t *testing.T) {
 		t.Fatal("tampered manifest verified")
 	}
 }
+
+func TestNewestPerLine(t *testing.T) {
+	got := newestPerLine(
+		[]string{"8.4", "8.10", "9", "1"},
+		[]string{"8.4.9", "8.4.10", "8.4.2", "8.10.1", "8.1.0", "9.2.0-rc1", "9.1.2", "1.0.0-alpha.80", "10.0.0"},
+	)
+	want := map[string]string{"8.4": "8.4.10", "8.10": "8.10.1", "9": "9.1.2"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for line, v := range want {
+		if got[line] != v {
+			t.Errorf("line %s: got %s, want %s", line, got[line], v)
+		}
+	}
+	if cmpVersion("30.2", "30.10") >= 0 || cmpVersion("18.6", "18.6") != 0 || cmpVersion("8.0.46", "8.0.9") <= 0 {
+		t.Error("cmpVersion")
+	}
+}

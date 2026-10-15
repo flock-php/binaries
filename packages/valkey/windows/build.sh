@@ -9,11 +9,13 @@ set -euo pipefail
 
 VERSION="${1:?usage: build.sh <version> <out-dir>}"
 OUT="${2:?usage: build.sh <version> <out-dir>}"
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 WORK="$PWD/valkey-work"
 
 mkdir -p "$WORK" && cd "$WORK"
 if [[ ! -d "valkey-$VERSION" ]]; then
-  curl -fsSL "https://github.com/valkey-io/valkey/archive/refs/tags/$VERSION.tar.gz" | tar xz
+  bash "$ROOT/packages/valkey/source.sh" "$VERSION" valkey.tar.gz
+  mkdir "valkey-$VERSION" && tar -C "valkey-$VERSION" --strip-components 1 -xzf valkey.tar.gz
 fi
 
 # MSYS2's dlfcn.h hides dladdr() behind __GNU_VISIBLE, which Valkey's crash reporter needs.
@@ -25,7 +27,7 @@ cd "valkey-$VERSION"
 make -j"$(nproc)" BUILD_TLS=no MALLOC=libc USE_SYSTEMD=no CFLAGS="-D_GNU_SOURCE -Wno-char-subscripts"
 
 cd "$WORK/.."
-rm -rf "$OUT" && mkdir -p "$OUT"
+rm -rf "$OUT" && mkdir -p "$OUT/LICENSES"
 for bin in valkey-server valkey-cli valkey-benchmark; do
   cp "$WORK/valkey-$VERSION/src/$bin.exe" "$OUT/"
 done
@@ -33,7 +35,11 @@ done
 for dll in $(ldd "$OUT"/*.exe | awk '/\/usr\/bin\/msys-.*\.dll/ {print $3}' | sort -u); do
   cp "$dll" "$OUT/"
 done
-cp "$WORK/valkey-$VERSION/COPYING" "$OUT/LICENSE.txt" 2>/dev/null || cp "$WORK/valkey-$VERSION/LICENSE"* "$OUT/" || true
+cp "$WORK/valkey-$VERSION/COPYING" "$OUT/LICENSES/valkey.txt"
+# The MSYS2 runtime (msys-2.0.dll, Cygwin: LGPLv3+) travels with its license and exact version;
+# its source is the msys2/msys2-runtime tag of that version.
+cp /usr/share/licenses/msys2-runtime/* "$OUT/LICENSES/" 2>/dev/null || true
+pacman -Q msys2-runtime > "$OUT/LICENSES/msys2-runtime-version.txt"
 
 ls -la "$OUT"
 "$OUT/valkey-server.exe" --version
