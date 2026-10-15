@@ -145,11 +145,14 @@ switch ($Package) {
         Check 'php' { ((Invoke-Native $php @('-n', '-v')) -split "`n")[0] }
         Check 'thread safe' { $zts = Invoke-Native $php @('-n', '-r', 'echo PHP_ZTS;'); if ($zts -ne '1') { throw "PHP_ZTS is $zts" } }
         Check 'php-cgi' { ((Invoke-Native (Join-Path $D 'php-cgi.exe') @('-n', '-v')) -split "`n")[0] }
-        # The bundled extensions Laravel apps load (gd was gd2 before PHP 8.0).
+        # The bundled extensions Laravel apps load: compiled in (zip, up to PHP 8.1) or a DLL in
+        # ext/ (gd was php_gd2.dll before PHP 8.0).
         $exts = 'curl', 'fileinfo', 'gd', 'intl', 'mbstring', 'openssl', 'pdo_mysql', 'pdo_pgsql', 'pdo_sqlite', 'sodium', 'zip'
         Check 'bundled extensions' {
+            $builtin = (Invoke-Native $php @('-n', '-m')) -split "`r?`n"
             $flags = @('-n', '-d', "extension_dir=$(Join-Path $D 'ext')")
             foreach ($e in $exts) {
+                if ($builtin -contains $e) { continue }
                 if ($e -eq 'gd' -and -not (Test-Path (Join-Path $D 'ext/php_gd.dll'))) { $e = 'gd2' }
                 $flags += @('-d', "extension=$e")
             }
