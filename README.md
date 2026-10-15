@@ -9,8 +9,14 @@ signed manifest, so nothing has to be compiled on your machine.
 What we build is pinned in [`versions.json`](versions.json). The daily `Release` workflow
 (`release.yml`) asks `tools/flockrel plan` which package versions aren't published yet, builds and
 tests each one, and uploads it to a release tagged `<package>-<version>` as
-`<package>-<version>-<platform>.tar.gz|zip`. A package is only uploaded when every check passed, and
-an uploaded asset is never replaced.
+`<package>-<version>-build<N>-<platform>.tar.gz|zip`. A package is only uploaded when every check
+passed, and an uploaded asset is never replaced.
+
+To rebuild versions that are already published (a security fix in a bundled library, an added
+extension, a bug the tests missed), raise the platform's `build` in `versions.json`. The next run
+builds the newest patch of every minor again as the new build, next to the old one. The manifest
+lists only the newest build, and Flock updates an installed package when the manifest has a higher
+build of the same version.
 
 Then it rebuilds `manifest.json` from all releases and signs it with ed25519. Flock downloads
 `releases/download/manifest/manifest.json` and `manifest.json.sig` and checks them against the

@@ -1,6 +1,7 @@
 # Builds one PHP release for macOS (Apple Silicon) with static-php-cli, tests it, and publishes
-# it as php-<version>-macos-arm64.tar.gz on the php-<version> release. Called by release.yml for
-# every version that isn't published yet; run it by hand to test a build without publishing.
+# it as php-<version>-build<N>-macos-arm64.tar.gz on the php-<version> release, N being the build
+# number in versions.json. Called by release.yml for every version without that build yet; run it
+# by hand to test a build without publishing.
 # Nothing is published unless every check passed, and a published asset is never replaced.
 name: Build PHP macOS
 
@@ -28,22 +29,27 @@ permissions:
 
 env:
   VERSION: ${{ inputs.version }}
-  ASSET: php-${{ inputs.version }}-macos-arm64.tar.gz
 
 jobs:
   build:
     name: build ${{ inputs.version }}
     runs-on: macos-15
     timeout-minutes: 120
+    outputs:
+      asset: ${{ steps.config.outputs.asset }}
     env:
       GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
 
       - name: Read versions.json
+        id: config
         run: |
-          jq -r '.php.macos | "SPC_VERSION=\(.spc)\nMIN_OS=\(.min_os)\nSTATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions)"' versions.json >> "$GITHUB_ENV"
+          jq -r '.php.macos | "BUILD=\(.build)\nSPC_VERSION=\(.spc)\nMIN_OS=\(.min_os)\nSTATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions)"' versions.json >> "$GITHUB_ENV"
           echo "MINOR=$(cut -d. -f1-2 <<<"$VERSION")" >> "$GITHUB_ENV"
+          asset="php-$VERSION-build$(jq -r .php.macos.build versions.json)-macos-arm64.tar.gz"
+          echo "ASSET=$asset" >> "$GITHUB_ENV"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
 
       - name: Cache static-php-cli downloads
         uses: actions/cache@v6
@@ -64,10 +70,10 @@ jobs:
 
       - name: Package
         run: |
-          jq -n --arg version "$VERSION" --arg commit "$GITHUB_SHA" --arg spc "$SPC_VERSION" \
+          jq -n --arg version "$VERSION" --argjson build "$BUILD" --arg commit "$GITHUB_SHA" --arg spc "$SPC_VERSION" \
                 --arg min_os "$MIN_OS" --arg static "$STATIC_EXTS" --arg shared "$SHARED_EXTS" \
                 --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{package: "php", version: $version, platform: "macos-arm64", min_os: $min_os,
+            '{package: "php", version: $version, build: $build, platform: "macos-arm64", min_os: $min_os,
               built: $built, commit: $commit, static_php_cli: $spc,
               extensions: {compiled_in: ($static | split(",")), shared: ($shared | split(","))}}' \
             > out/flock-package.json
@@ -85,6 +91,8 @@ jobs:
     name: run ${{ inputs.version }} without Homebrew
     needs: build
     runs-on: macos-14
+    env:
+      ASSET: ${{ needs.build.outputs.asset }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -109,6 +117,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       TAG: php-${{ inputs.version }}
+      ASSET: ${{ needs.build.outputs.asset }}
     steps:
       - uses: actions/download-artifact@v8
         with:

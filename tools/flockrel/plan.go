@@ -13,11 +13,12 @@ type build struct {
 	Package  string `json:"package"`
 	Version  string `json:"version"`
 	Platform string `json:"platform"`
+	Build    int    `json:"build"`
 }
 
 // runPlan prints, and writes to $GITHUB_OUTPUT, the builds whose release asset doesn't exist yet:
 //
-//	php_macos=[{"package":"php","version":"8.4.26","platform":"macos-arm64"}, ...]
+//	php_macos=[{"package":"php","version":"8.4.26","platform":"macos-arm64","build":1}, ...]
 //	any=true|false
 func runPlan(args []string) error {
 	fs := flag.NewFlagSet("plan", flag.ExitOnError)
@@ -34,10 +35,13 @@ func runPlan(args []string) error {
 	if err != nil {
 		return err
 	}
-	published := map[string]bool{} // asset names
+	newest := map[string]int{} // "<tag> <platform>" → highest published build
 	for _, r := range releases {
 		for _, a := range r.Assets {
-			published[a.Name] = true
+			if n, platform, ok := parseAsset(r.TagName, a.Name); ok {
+				key := r.TagName + " " + platform
+				newest[key] = max(newest[key], n)
+			}
 		}
 	}
 
@@ -56,9 +60,9 @@ func runPlan(args []string) error {
 
 	phpMacOS := []build{}
 	for _, ver := range phpVersions {
-		b := build{Package: "php", Version: strings.TrimSpace(ver), Platform: "macos-arm64"}
-		name := fmt.Sprintf("%s-%s-%s.tar.gz", b.Package, b.Version, b.Platform)
-		if published[name] {
+		b := build{Package: "php", Version: strings.TrimSpace(ver), Platform: "macos-arm64", Build: v.PHP.MacOS.Build}
+		name := assetName(b.Package, b.Version, b.Build, b.Platform, "tar.gz")
+		if newest[b.Package+"-"+b.Version+" "+b.Platform] >= b.Build {
 			fmt.Fprintf(os.Stderr, "published  %s\n", name)
 			continue
 		}

@@ -10,6 +10,7 @@ type versions struct {
 	PHP struct {
 		Minors []string `json:"minors"`
 		MacOS  struct {
+			Build            int    `json:"build"`
 			SPC              string `json:"spc"`
 			MinOS            string `json:"min_os"`
 			StaticExtensions string `json:"static_extensions"`

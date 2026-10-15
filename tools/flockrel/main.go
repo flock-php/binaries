@@ -6,7 +6,8 @@
 //	flockrel verify   -pub manifest.pub manifest.json manifest.json.sig
 //	flockrel keygen   -pub manifest.pub                          new signing key: public to file, private to stdout
 //
-// Releases are tagged <package>-<version> and hold assets named <package>-<version>-<platform>.<ext>.
+// Releases are tagged <package>-<version> and hold assets named <package>-<version>-build<N>-<platform>.<ext>;
+// a higher build number is a rebuild of the same version (e.g. with a library security fix).
 // GITHUB_TOKEN is used for the GitHub API when set; MANIFEST_SIGNING_KEY holds the base64
 // ed25519 seed for signing.
 package main

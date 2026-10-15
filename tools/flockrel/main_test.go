@@ -25,16 +25,28 @@ func TestTagAndAssetNames(t *testing.T) {
 		t.Error("manifest tag must not look like a package")
 	}
 
-	assets := map[string]string{
-		"php-8.4.26-macos-arm64.tar.gz": "macos-arm64",
-		"php-8.4.26-windows-x64.zip":    "windows-x64",
-		"php-8.4.26-macos-arm64.tar.xz": "",
-		"php-8.4.2-macos-arm64.tar.gz":  "",
-		"SHA256SUMS":                    "",
+	if got := assetName("php", "8.4.26", 2, "macos-arm64", "tar.gz"); got != "php-8.4.26-build2-macos-arm64.tar.gz" {
+		t.Errorf("assetName: %s", got)
+	}
+	type parsed struct {
+		build    int
+		platform string
+		ok       bool
+	}
+	assets := map[string]parsed{
+		"php-8.4.26-build1-macos-arm64.tar.gz":  {1, "macos-arm64", true},
+		"php-8.4.26-build12-windows-x64.zip":    {12, "windows-x64", true},
+		"php-8.4.26-macos-arm64.tar.gz":         {},
+		"php-8.4.26-build0-macos-arm64.tar.gz":  {},
+		"php-8.4.26-build1-macos-arm64.tar.xz":  {},
+		"php-8.4.2-build1-macos-arm64.tar.gz":   {},
+		"php-8.4.266-build1-macos-arm64.tar.gz": {},
+		"SHA256SUMS":                            {},
 	}
 	for name, want := range assets {
-		if got := assetPlatform("php-8.4.26", name); got != want {
-			t.Errorf("%s: got %q, want %q", name, got, want)
+		n, platform, ok := parseAsset("php-8.4.26", name)
+		if got := (parsed{n, platform, ok}); ok != want.ok || ok && got != want {
+			t.Errorf("%s: got %+v, want %+v", name, got, want)
 		}
 	}
 }

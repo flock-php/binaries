@@ -26,7 +26,10 @@ type manifest struct {
 	Packages  map[string]map[string]map[string]entry `json:"packages"` // package → version → platform
 }
 
+// entry is the newest build of a package version for one platform. Flock replaces an installed
+// package when the manifest has a higher build of the same version.
 type entry struct {
+	Build     int       `json:"build"`
 	URL       string    `json:"url"`
 	SHA256    string    `json:"sha256"`
 	Size      int64     `json:"size"`
@@ -68,11 +71,15 @@ func runManifest(args []string) error {
 			continue
 		}
 		pkg, ver := parts[1], parts[2]
+		// Only the newest build of each platform: that's the one Flock installs or updates to.
+		newest := map[string]asset{}
+		builds := map[string]int{}
 		for _, a := range r.Assets {
-			platform := assetPlatform(r.TagName, a.Name)
-			if platform == "" {
-				continue
+			if n, platform, ok := parseAsset(r.TagName, a.Name); ok && n > builds[platform] {
+				newest[platform], builds[platform] = a, n
 			}
+		}
+		for platform, a := range newest {
 			sum, err := sha256Of(a)
 			if err != nil {
 				return fmt.Errorf("%s: %w", a.Name, err)
@@ -83,8 +90,8 @@ func runManifest(args []string) error {
 			if m.Packages[pkg][ver] == nil {
 				m.Packages[pkg][ver] = map[string]entry{}
 			}
-			m.Packages[pkg][ver][platform] = entry{URL: a.BrowserDownloadURL, SHA256: sum, Size: a.Size, Published: r.PublishedAt}
-			fmt.Fprintf(os.Stderr, "%s %s %s\n", pkg, ver, platform)
+			m.Packages[pkg][ver][platform] = entry{Build: builds[platform], URL: a.BrowserDownloadURL, SHA256: sum, Size: a.Size, Published: a.CreatedAt}
+			fmt.Fprintf(os.Stderr, "%s %s %s build %d\n", pkg, ver, platform, builds[platform])
 		}
 	}
 

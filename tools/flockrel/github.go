@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -24,10 +25,11 @@ type release struct {
 }
 
 type asset struct {
-	Name               string `json:"name"`
-	Size               int64  `json:"size"`
-	Digest             string `json:"digest"` // "sha256:<hex>"
-	BrowserDownloadURL string `json:"browser_download_url"`
+	Name               string    `json:"name"`
+	Size               int64     `json:"size"`
+	Digest             string    `json:"digest"` // "sha256:<hex>"
+	BrowserDownloadURL string    `json:"browser_download_url"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 // listReleases returns every published release of repo.
@@ -94,16 +96,25 @@ func sha256Of(a asset) (string, error) {
 // tagPattern splits a release tag into package and version: php-8.4.26 → php, 8.4.26.
 var tagPattern = regexp.MustCompile(`^([a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*)-(\d[0-9A-Za-z.+]*)$`)
 
-// assetPlatform returns the platform part of <tag>-<platform>.<ext>, or "" for other files.
-func assetPlatform(tag, name string) string {
+// assetPattern splits the part of an asset name after "<tag>-": build2-macos-arm64.tar.gz → 2, macos-arm64.
+var assetPattern = regexp.MustCompile(`^build([1-9][0-9]*)-([a-z0-9][a-z0-9.-]*)\.(?:tar\.gz|zip)$`)
+
+// assetName is the file name of one build of a package version for a platform.
+func assetName(pkg, version string, build int, platform, ext string) string {
+	return fmt.Sprintf("%s-%s-build%d-%s.%s", pkg, version, build, platform, ext)
+}
+
+// parseAsset returns the build number and platform of <tag>-build<N>-<platform>.<ext>,
+// or ok=false for other files.
+func parseAsset(tag, name string) (build int, platform string, ok bool) {
 	rest, ok := strings.CutPrefix(name, tag+"-")
 	if !ok {
-		return ""
+		return 0, "", false
 	}
-	for _, ext := range []string{".tar.gz", ".zip"} {
-		if p, ok := strings.CutSuffix(rest, ext); ok && p != "" {
-			return p
-		}
+	m := assetPattern.FindStringSubmatch(rest)
+	if m == nil {
+		return 0, "", false
 	}
-	return ""
+	build, err := strconv.Atoi(m[1])
+	return build, m[2], err == nil
 }
