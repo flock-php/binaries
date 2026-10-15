@@ -30,16 +30,23 @@ foreach ($pack in 'zip', 'devel_pack') {
 Expand-Archive (Join-Path $work 'zip.zip') -DestinationPath $Out -Force
 Expand-Archive (Join-Path $work 'devel_pack.zip') -DestinationPath (Join-Path $work 'devel') -Force
 $phpDevel = (Get-ChildItem (Join-Path $work 'devel') -Directory | Select-Object -First 1).FullName
-# PHP < 8.4 headers turn ZEND_FASTCALL's __vectorcall off for clang, but php8ts.dll is built
-# by MSVC with it (exports like zend_hash_destroy@@8), so clang would link against names that
-# don't exist. PHP 8.4 dropped that condition; do the same for older headers.
-$portability = Join-Path $phpDevel 'include\Zend\zend_portability.h'
-$header = Get-Content $portability -Raw
-$fixed = $header.Replace('_MSC_VER >= 1800 && !defined(__clang__)', '_MSC_VER >= 1800')
-if ($fixed -ne $header) {
-    Set-Content $portability $fixed -NoNewline
-    Write-Output "patched ZEND_FASTCALL for clang in zend_portability.h"
+# PHP < 8.4 headers don't compile/link with clang against the MSVC-built php8ts.dll; backport
+# the 8.4 header fixes (a no-op where they're already in).
+function Update-PhpHeader([string] $name, [string] $old, [string] $new, [string] $why) {
+    $path = Join-Path $phpDevel "include\Zend\$name"
+    if (-not (Test-Path $path)) { return }
+    $header = Get-Content $path -Raw
+    $fixed = $header.Replace($old, $new)
+    if ($fixed -ne $header) {
+        Set-Content $path $fixed -NoNewline
+        Write-Output "patched ${name}: $why"
+    }
 }
+# ZEND_FASTCALL: php8ts.dll exports __vectorcall names (zend_hash_destroy@@8), but < 8.4
+# turns __vectorcall off for clang, which would then link against names that don't exist.
+Update-PhpHeader 'zend_portability.h' '_MSC_VER >= 1800 && !defined(__clang__)' '_MSC_VER >= 1800' 'ZEND_FASTCALL is __vectorcall under clang'
+# 8.3 calls the _AddressOfReturnAddress intrinsic without including <intrin.h>.
+Update-PhpHeader 'zend_call_stack.h' "#include `"zend_portability.h`"`n#ifdef __APPLE__" "#include `"zend_portability.h`"`n#ifdef _MSC_VER`n# include <intrin.h>`n#endif`n#ifdef __APPLE__" 'include <intrin.h>'
 
 # FrankenPHP source and its native dependencies.
 $src = Join-Path $work 'frankenphp'
