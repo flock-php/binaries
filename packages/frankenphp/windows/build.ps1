@@ -30,6 +30,16 @@ foreach ($pack in 'zip', 'devel_pack') {
 Expand-Archive (Join-Path $work 'zip.zip') -DestinationPath $Out -Force
 Expand-Archive (Join-Path $work 'devel_pack.zip') -DestinationPath (Join-Path $work 'devel') -Force
 $phpDevel = (Get-ChildItem (Join-Path $work 'devel') -Directory | Select-Object -First 1).FullName
+# PHP < 8.4 headers turn ZEND_FASTCALL's __vectorcall off for clang, but php8ts.dll is built
+# by MSVC with it (exports like zend_hash_destroy@@8), so clang would link against names that
+# don't exist. PHP 8.4 dropped that condition; do the same for older headers.
+$portability = Join-Path $phpDevel 'include\Zend\zend_portability.h'
+$header = Get-Content $portability -Raw
+$fixed = $header.Replace('_MSC_VER >= 1800 && !defined(__clang__)', '_MSC_VER >= 1800')
+if ($fixed -ne $header) {
+    Set-Content $portability $fixed -NoNewline
+    Write-Output "patched ZEND_FASTCALL for clang in zend_portability.h"
+}
 
 # FrankenPHP source and its native dependencies.
 $src = Join-Path $work 'frankenphp'

@@ -27,8 +27,9 @@ jobs:
           - { ext: redis,    repo: phpredis/phpredis,         ref: "6.3.0",   php: "7.4" }
           - { ext: redis,    repo: phpredis/phpredis,         ref: "6.3.0",   php: "8.5" }
           # igbinary only enables itself for exactly "yes" (the builder passes "shared").
-          - { ext: igbinary, repo: igbinary/igbinary,         ref: "3.2.16",  php: "7.4", args: --enable-igbinary=yes }
-          - { ext: igbinary, repo: igbinary/igbinary,         ref: "3.2.16",  php: "8.5", args: --enable-igbinary=yes }
+          # 3.2.17RC1: 3.2.16 includes ext/standard/php_smart_string.h, which PHP 8.5 removed.
+          - { ext: igbinary, repo: igbinary/igbinary,         ref: "3.2.17RC1", php: "7.4", args: --enable-igbinary=yes }
+          - { ext: igbinary, repo: igbinary/igbinary,         ref: "3.2.17RC1", php: "8.5", args: --enable-igbinary=yes }
           - { ext: apcu,     repo: krakjoe/apcu,              ref: "v5.1.28", php: "7.4" }
           - { ext: apcu,     repo: krakjoe/apcu,              ref: "v5.1.28", php: "8.5" }
           - { ext: pcov,     repo: krakjoe/pcov,              ref: "v1.0.12", php: "7.4" }
