@@ -14,6 +14,7 @@ WORK="${WORK_DIR:-$PWD/postgres-work}"
 export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
 # Never pick up Homebrew's libraries or tools.
 export PATH="/usr/bin:/bin:/usr/sbin:/sbin"
+export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
 JOBS="$(sysctl -n hw.ncpu)"
 
 mkdir -p "$WORK" && cd "$WORK"
@@ -31,9 +32,19 @@ cd src
   CPPFLAGS="-I$WORK/openssl/include" LDFLAGS="-L$WORK/openssl/lib"
 echo "::endgroup::"
 
+# PostgreSQL 15+ refuses a libpq that references exit functions (libpq-refs-stamp, using nm).
+# The static OpenSSL brings two: atexit (its cleanup handler) and pthread_exit, neither of which
+# libpq calls on its own. Hide just those two from the check; anything else still fails it.
+mkdir -p "$WORK/nm"
+cat >"$WORK/nm/nm" <<'NM'
+#!/bin/sh
+/usr/bin/nm "$@" | grep -v -E ' _(atexit|pthread_exit)$'
+NM
+chmod +x "$WORK/nm/nm"
+
 echo "::group::Build"
 rm -rf "$OUT" && mkdir -p "$OUT"
-make -j"$JOBS"
+PATH="$WORK/nm:$PATH" make -j"$JOBS"
 make -C contrib -j"$JOBS"
 make install
 make -C contrib install

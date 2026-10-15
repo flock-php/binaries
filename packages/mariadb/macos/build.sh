@@ -13,6 +13,9 @@ ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 WORK="${WORK_DIR:-$PWD/mariadb-work}"
 export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
 CMAKE="$(command -v cmake)"
+# One SDK for everything: otherwise the C++ headers can come from Xcode and the C headers from
+# the Command Line Tools, which breaks <cstdint>.
+export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
 export PATH="$(dirname "$CMAKE"):/usr/bin:/bin:/usr/sbin:/sbin"
 JOBS="$(sysctl -n hw.ncpu)"
 
@@ -32,6 +35,7 @@ tar -C src --strip-components 1 -xzf mariadb.tar.gz
   -DINSTALL_LAYOUT=STANDALONE \
   -DCMAKE_INSTALL_PREFIX="$OUT" \
   -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" \
+  -DCMAKE_OSX_SYSROOT="$SDKROOT" \
   -DCMAKE_IGNORE_PREFIX_PATH="/opt/homebrew;/usr/local" \
   -DWITH_SSL="$WORK/openssl" \
   -DWITH_PCRE=bundled \

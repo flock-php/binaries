@@ -42,4 +42,5 @@ cp /usr/share/licenses/msys2-runtime/* "$OUT/LICENSES/" 2>/dev/null || true
 pacman -Q msys2-runtime > "$OUT/LICENSES/msys2-runtime-version.txt"
 
 ls -la "$OUT"
-"$OUT/valkey-server.exe" --version
+# From the build tree: the copy in OUT would load a second msys-2.0.dll into this MSYS shell.
+"$WORK/valkey-$VERSION/src/valkey-server.exe" --version

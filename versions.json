@@ -49,7 +49,7 @@
         "macos-arm64": { "how": "mirror", "build": 1 },
         "windows-x64": { "how": "mirror", "build": 1 }
       },
-      "env": { "SIGNER": "Oracle" },
+      "env": { "SIGNER_MACOS": "Oracle", "SIGNER_WINDOWS": "Oracle" },
       "publish_source": true
     },
     "mongodb": {
@@ -58,7 +58,7 @@
         "macos-arm64": { "how": "mirror", "build": 1 },
         "windows-x64": { "how": "mirror", "build": 1 }
       },
-      "env": { "SIGNER": "MongoDB" },
+      "env": { "SIGNER_MACOS": "MongoDB" },
       "publish_source": true
     },
     "meilisearch": {
@@ -88,7 +88,7 @@
         "macos-arm64": { "how": "mirror", "build": 1 },
         "windows-x64": { "how": "mirror", "build": 1 }
       },
-      "env": { "SIGNER": "Node.js|OpenJS" }
+      "env": { "SIGNER_MACOS": "Node.js|OpenJS", "SIGNER_WINDOWS": "Node.js|OpenJS" }
     }
   },
   "manifest": {

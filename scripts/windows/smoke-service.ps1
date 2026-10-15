@@ -1,6 +1,6 @@
 # Smoke-tests a service package on Windows the way Flock runs it: unpack (dropping a single
 # top-level folder, as Flock does), initialise a data directory, start on 127.0.0.1, talk to it
-# with its own client, shut down. With $env:SIGNER set, the main executable must carry a valid
+# with its own client, shut down. With $env:SIGNER_WINDOWS set, the main executable must carry a valid
 # Authenticode signature whose subject matches that regex (the vendor's, for mirrored packages).
 # Valkey has its own, more thorough test: scripts/smoke-valkey.ps1.
 # Usage: scripts/windows/smoke-service.ps1 -Package <name> -Archive <zip>
@@ -23,9 +23,10 @@ function Check([string] $name, [scriptblock] $test) {
     try { $r = & $test; $results.Add("| $name | ✓ $r |") }
     catch { $results.Add("| $name | ✗ $($_.Exception.Message) |"); $script:failed = $true }
 }
-function Invoke-Native {
-    $exe, $rest = $args
-    $out = & $exe @rest 2>&1 | Out-String
+# Arguments go in as one array: passed loose to a PowerShell function, -h127.0.0.1 and
+# --version would be taken apart as PowerShell's own parameter syntax.
+function Invoke-Native([string] $exe, [string[]] $arguments) {
+    $out = & $exe @arguments 2>&1 | Out-String
     if ($LASTEXITCODE) { throw "exit $LASTEXITCODE`: $($out.Trim() | Select-Object -Last 1)" }
     $out.Trim()
 }
@@ -59,12 +60,12 @@ $entries = @(Get-ChildItem $D)
 if ($entries.Count -eq 1 -and $entries[0].PSIsContainer) { $D = $entries[0].FullName }
 $results.Add("| package | $(Split-Path -Leaf $Archive) |")
 
-if ($env:SIGNER) {
+if ($env:SIGNER_WINDOWS) {
     $main = @{ mysql = 'bin/mysqld.exe'; mongodb = 'bin/mongod.exe'; node = 'node.exe' }[$Package]
     Check "Authenticode signature of $main" {
         $sig = Get-AuthenticodeSignature (Join-Path $D $main)
         if ($sig.Status -ne 'Valid') { throw "status $($sig.Status)" }
-        if ($sig.SignerCertificate.Subject -notmatch $env:SIGNER) { throw "signed by $($sig.SignerCertificate.Subject)" }
+        if ($sig.SignerCertificate.Subject -notmatch $env:SIGNER_WINDOWS) { throw "signed by $($sig.SignerCertificate.Subject)" }
         $sig.SignerCertificate.Subject
     }
 }
@@ -72,45 +73,50 @@ if ($env:SIGNER) {
 switch ($Package) {
     'postgres' {
         $bin = Join-Path $D 'bin'
-        Check 'initdb' { Invoke-Native "$bin/initdb.exe" -D $data -U postgres --auth=trust -E UTF8 --locale=C | Out-Null }
+        Check 'initdb' { Invoke-Native "$bin/initdb.exe" @('-D', $data, '-U', 'postgres', '--auth=trust', '-E', 'UTF8', '--locale=C') | Out-Null }
         $p = Start-Server "$bin/postgres.exe" @('-D', $data, '-p', '54329', '-c', 'listen_addresses=127.0.0.1')
         Check 'start' { Wait-Port 54329 $p "$tmp/err.log" }
-        $psql = @("$bin/psql.exe", '-h', '127.0.0.1', '-p', '54329', '-U', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At')
-        Check 'query' { Invoke-Native @psql -c 'select version()' }
+        $psql = @('-h', '127.0.0.1', '-p', '54329', '-U', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At')
+        Check 'query' { Invoke-Native "$bin/psql.exe" ($psql + @('-c', 'select version()')) }
         Check 'contrib extensions (pgcrypto, pg_trgm, hstore, citext)' {
-            Invoke-Native @psql -c 'create extension pgcrypto; create extension pg_trgm; create extension hstore; create extension citext' `
-                -c "select encode(digest('flock', 'sha256'), 'hex'), gen_random_uuid(), similarity('flock', 'block'), 'a=>1'::hstore, 'A'::citext = 'a'" | Out-Null
+            Invoke-Native "$bin/psql.exe" ($psql + @('-c', 'create extension pgcrypto; create extension pg_trgm; create extension hstore; create extension citext',
+                '-c', "select encode(digest('flock', 'sha256'), 'hex'), gen_random_uuid(), similarity('flock', 'block'), 'a=>1'::hstore, 'A'::citext = 'a'")) | Out-Null
         }
-        Check 'createdb' { Invoke-Native "$bin/createdb.exe" -h 127.0.0.1 -p 54329 -U postgres flock }
+        Check 'createdb' { Invoke-Native "$bin/createdb.exe" @('-h', '127.0.0.1', '-p', '54329', '-U', 'postgres', 'flock') }
         Check 'pg_dump | pg_restore' {
-            Invoke-Native "$bin/pg_dump.exe" -h 127.0.0.1 -p 54329 -U postgres -Fc -f "$tmp/dump" postgres
-            Invoke-Native "$bin/pg_restore.exe" -l "$tmp/dump" | Out-Null
+            Invoke-Native "$bin/pg_dump.exe" @('-h', '127.0.0.1', '-p', '54329', '-U', 'postgres', '-Fc', '-f', "$tmp/dump", 'postgres')
+            Invoke-Native "$bin/pg_restore.exe" @('-l', "$tmp/dump") | Out-Null
         }
-        Check 'pg_ctl stop' { Invoke-Native "$bin/pg_ctl.exe" stop -D $data -m fast | Out-Null }
+        Check 'pg_ctl stop' { Invoke-Native "$bin/pg_ctl.exe" @('stop', '-D', $data, '-m', 'fast') | Out-Null }
     }
     { $_ -in 'mysql', 'mariadb' } {
         $bin = Join-Path $D 'bin'
         if ($Package -eq 'mariadb') {
-            Check 'install-db' { Invoke-Native "$bin/mariadb-install-db.exe" "--datadir=$data" | Out-Null }
+            # mariadb-install-db creates the data directory itself.
+            Remove-Item -Recurse -Force $data
+            Check 'install-db' {
+                Invoke-Native "$bin/mariadb-install-db.exe" @("--datadir=$data") | Out-Null
+                if (-not (Test-Path "$data/mysql")) { throw 'no system tables in the data directory' }
+            }
             $server = "$bin/mariadbd.exe"; $client = "$bin/mariadb.exe"; $admin = "$bin/mariadb-admin.exe"
-            # mariadb-install-db writes a my.ini into the data directory.
-            $serverArgs = @("--defaults-file=$data/my.ini")
+            $serverArgs = @('--no-defaults', "--basedir=$D", "--datadir=$data")
         } else {
-            Check 'initialize' { Invoke-Native "$bin/mysqld.exe" --no-defaults --initialize-insecure "--basedir=$D" "--datadir=$data" | Out-Null }
+            Check 'initialize' { Invoke-Native "$bin/mysqld.exe" @('--no-defaults', '--initialize-insecure', "--basedir=$D", "--datadir=$data") | Out-Null }
             $server = "$bin/mysqld.exe"; $client = "$bin/mysql.exe"; $admin = "$bin/mysqladmin.exe"
             $serverArgs = @('--no-defaults', "--basedir=$D", "--datadir=$data", '--mysqlx=OFF')
         }
         $p = Start-Server $server ($serverArgs + @('--port=33069', '--bind-address=127.0.0.1'))
         Check 'start' { Wait-Port 33069 $p "$tmp/err.log" }
-        $sql = @($client, '--no-defaults', '-h127.0.0.1', '-P33069', '-uroot')
+        $sql = @('--no-defaults', '-h127.0.0.1', '-P33069', '-uroot')
         Check 'query' {
-            Invoke-Native @sql -e 'create database flock; create table flock.t (id int primary key, v json) engine=innodb; insert into flock.t values (1, json_object(''a'', 1))' | Out-Null
-            Invoke-Native @sql -N -e 'select version()'
+            Invoke-Native $client ($sql + @('-e', 'create database flock; create table flock.t (id int primary key, v json) engine=innodb; insert into flock.t values (1, json_object(''a'', 1))')) | Out-Null
+            Invoke-Native $client ($sql + @('-N', '-e', 'select version()'))
         }
-        Check 'shutdown' { Invoke-Native $admin --no-defaults -h127.0.0.1 -P33069 -uroot shutdown | Out-Null; if (-not $p.WaitForExit(30000)) { throw 'did not exit' } }
+        Check 'shutdown' { Invoke-Native $admin ($sql + @('shutdown')) | Out-Null; if (-not $p.WaitForExit(30000)) { throw 'did not exit' } }
     }
     'mongodb' {
-        Check 'version' { (Invoke-Native "$D/bin/mongod.exe" --version | Select-Object -First 1) }
+        Check 'version' { ((Invoke-Native "$D/bin/mongod.exe" @('--version')) -split "
+")[0] }
         $p = Start-Server "$D/bin/mongod.exe" @('--dbpath', $data, '--port', '27029', '--bind_ip', '127.0.0.1')
         Check 'accepts connections' { Wait-Port 27029 $p "$tmp/out.log" }
         Stop-Server $p
@@ -129,8 +135,8 @@ switch ($Package) {
         Stop-Server $p
     }
     'node' {
-        Check 'node' { Invoke-Native "$D/node.exe" -e 'console.log(process.version, require(''crypto'').createHash(''sha256'').update(''x'').digest(''hex'').length)' }
-        Check 'npm' { Invoke-Native "$D/npm.cmd" --version }
+        Check 'node' { Invoke-Native "$D/node.exe" @('-e', 'console.log(process.version, require(''crypto'').createHash(''sha256'').update(''x'').digest(''hex'').length)') }
+        Check 'npm' { Invoke-Native "$D/npm.cmd" @('--version') }
     }
     default { $results.Add("| $Package | ✗ no smoke test |"); $failed = $true }
 }

@@ -11,8 +11,9 @@ fetch_text() {
   curl -fsSL --retry 3 --retry-all-errors "$1"
 }
 
-sha256_of() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
-md5_of() { if command -v md5sum >/dev/null; then md5sum "$1" | cut -d' ' -f1; else md5 -q "$1"; fi; }
+# Read from stdin: with a file name, Git Bash's sha256sum escapes Windows paths ("<hash>").
+sha256_of() { if command -v sha256sum >/dev/null; then sha256sum; else shasum -a 256; fi <"$1" | cut -d' ' -f1; }
+md5_of() { if command -v md5sum >/dev/null; then md5sum <"$1" | cut -d' ' -f1; else md5 -q "$1"; fi; }
 
 # check_sha256 <file> <expected hex>, check_md5 <file> <expected hex>
 check_sha256() {
