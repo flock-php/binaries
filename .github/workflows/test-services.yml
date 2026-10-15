@@ -1,4 +1,6 @@
 # TEMPORARY (services branch only): runs every service build and mirror without publishing.
+# The called workflows declare contents: write for their publish job, which GitHub only accepts
+# when the caller grants it; publish is never set here, so that job is always skipped.
 name: "Test: services"
 
 on:
@@ -27,6 +29,8 @@ jobs:
 
   builds:
     needs: plan
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       max-parallel: 10
@@ -40,6 +44,8 @@ jobs:
 
   mirrors:
     needs: plan
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       max-parallel: 10
