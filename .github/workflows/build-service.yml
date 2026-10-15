@@ -164,7 +164,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory pkg | Out-Null
-          tar -xf $env:ASSET -C pkg
+          & "$env:SystemRoot/System32/tar.exe" -xf $env:ASSET -C pkg
           ./scripts/smoke-valkey.ps1 -Dir pkg
       - name: Smoke test
         if: runner.os == 'Windows' && inputs.package != 'valkey'

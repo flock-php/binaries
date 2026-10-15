@@ -13,6 +13,9 @@ ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 WORK="$PWD/valkey-work"
 
 mkdir -p "$WORK" && cd "$WORK"
+# The work directory sits inside this repository: without this, the version string would
+# record our commit (mkreleasehdr.sh asks git) instead of 00000000 for a release tarball.
+export GIT_DIR="$WORK/no-git"
 if [[ ! -d "valkey-$VERSION" ]]; then
   bash "$ROOT/packages/valkey/source.sh" "$VERSION" valkey.tar.gz
   mkdir "valkey-$VERSION" && tar -C "valkey-$VERSION" --strip-components 1 -xzf valkey.tar.gz

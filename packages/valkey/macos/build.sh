@@ -11,6 +11,9 @@ export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
 export PATH="/usr/bin:/bin:/usr/sbin:/sbin"
 
 mkdir -p "$WORK" && cd "$WORK"
+# The work directory sits inside this repository: without this, the version string would
+# record our commit (mkreleasehdr.sh asks git) instead of 00000000 for a release tarball.
+export GIT_DIR="$WORK/no-git"
 bash "$ROOT/packages/valkey/source.sh" "$V" valkey.tar.gz
 rm -rf src && mkdir src && tar -C src --strip-components 1 -xzf valkey.tar.gz
 make -C src/src -j"$(sysctl -n hw.ncpu)" BUILD_TLS=no USE_SYSTEMD=no MALLOC=libc

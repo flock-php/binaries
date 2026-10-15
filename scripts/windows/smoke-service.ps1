@@ -54,7 +54,8 @@ function Stop-Server($proc) {
     $proc.WaitForExit(10000) | Out-Null
 }
 
-tar -xf $Archive -C $D
+# Windows' own tar (bsdtar, unpacks zip): GNU tar from Git would take D:\... for a remote host.
+& "$env:SystemRoot/System32/tar.exe" -xf $Archive -C $D
 if ($LASTEXITCODE) { throw "could not unpack $Archive" }
 $entries = @(Get-ChildItem $D)
 if ($entries.Count -eq 1 -and $entries[0].PSIsContainer) { $D = $entries[0].FullName }
@@ -110,7 +111,8 @@ switch ($Package) {
         $sql = @('--no-defaults', '-h127.0.0.1', '-P33069', '-uroot')
         Check 'query' {
             Invoke-Native $client ($sql + @('-e', 'create database flock; create table flock.t (id int primary key, v json) engine=innodb; insert into flock.t values (1, json_object(''a'', 1))')) | Out-Null
-            Invoke-Native $client ($sql + @('-N', '-e', 'select version()'))
+            # The last line: MariaDB 11.4+ clients warn about TLS verification first.
+            ((Invoke-Native $client ($sql + @('-N', '-e', 'select version()'))) -split "`n")[-1].Trim()
         }
         Check 'shutdown' { Invoke-Native $admin ($sql + @('shutdown')) | Out-Null; if (-not $p.WaitForExit(30000)) { throw 'did not exit' } }
     }

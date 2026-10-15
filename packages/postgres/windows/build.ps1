@@ -29,7 +29,10 @@ Write-Output "::group::Source $Version"
 $src = Join-Path $work 'src'
 if (Test-Path $src) { Remove-Item -Recurse -Force $src }
 New-Item -ItemType Directory $src | Out-Null
-tar -xjf "$work/postgresql.tar.bz2" -C $src --strip-components 1
+# Windows' own tar (bsdtar): GNU tar from Git, which can come first on PATH, takes D:\... for a
+# remote host:path and waits for it forever.
+& "$env:SystemRoot/System32/tar.exe" -xjf "$work/postgresql.tar.bz2" -C $src --strip-components 1
+if ($LASTEXITCODE) { throw 'could not unpack the PostgreSQL source' }
 Write-Output '::endgroup::'
 
 # winflexbison installs win_bison/win_flex; the MSVC scripts (14, 15) call bison and flex.

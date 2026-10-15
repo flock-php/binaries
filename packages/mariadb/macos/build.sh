@@ -28,6 +28,8 @@ echo "::group::Configure MariaDB $V"
 bash "$ROOT/packages/mariadb/source.sh" "$V" mariadb.tar.gz
 rm -rf src build && mkdir src build
 tar -C src --strip-components 1 -xzf mariadb.tar.gz
+# Bundled zlib: CMake finds the system one in the Command Line Tools SDK and adds that SDK's
+# usr/include to the include path, which breaks the C++ headers of the SDK we compile against.
 # STANDALONE is the layout of MariaDB's own binary tarballs: bin/, scripts/, share/, lib/plugin/,
 # usable from any directory with --basedir.
 "$CMAKE" -S src -B build \
@@ -39,7 +41,7 @@ tar -C src --strip-components 1 -xzf mariadb.tar.gz
   -DCMAKE_IGNORE_PREFIX_PATH="/opt/homebrew;/usr/local" \
   -DWITH_SSL="$WORK/openssl" \
   -DWITH_PCRE=bundled \
-  -DWITH_ZLIB=system \
+  -DWITH_ZLIB=bundled \
   -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_CONNECT=NO \
   -DPLUGIN_OQGRAPH=NO -DPLUGIN_SPHINX=NO -DPLUGIN_COLUMNSTORE=NO \
   -DWITH_UNIT_TESTS=OFF -DWITH_EMBEDDED_SERVER=OFF -DWITH_WSREP=OFF
