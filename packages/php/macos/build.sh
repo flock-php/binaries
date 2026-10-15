@@ -2,7 +2,8 @@
 # Builds PHP for macOS with static-php-cli: either php + php-fpm (NTS) or FrankenPHP (ZTS,
 # PHP embedded), each with the same compiled-in extensions plus shared extensions as .so.
 #
-# Usage: packages/php/macos/build.sh <major.minor> <out-dir>
+# Usage: packages/php/macos/build.sh <major.minor[.patch]> <out-dir>
+#   major.minor builds the newest patch release; major.minor.patch exactly that release.
 #   SPC_VERSION     static-php-cli release to use (required)
 #   STATIC_EXTS     comma-separated extensions compiled in (required)
 #   SHARED_EXTS     comma-separated extensions built as .so (optional)
@@ -15,8 +16,9 @@
 # A shared extension that fails to build is reported, not fatal: PHP is still usable without it.
 set -euo pipefail
 
-PHP_MINOR="${1:?usage: build.sh <major.minor> <out-dir>}"
-OUT="$(mkdir -p "${2:?usage: build.sh <major.minor> <out-dir>}" && cd "$2" && pwd)"
+PHP_VERSION="${1:?usage: build.sh <major.minor[.patch]> <out-dir>}"
+PHP_MINOR="$(cut -d. -f1-2 <<<"$PHP_VERSION")"
+OUT="$(mkdir -p "${2:?usage: build.sh <major.minor[.patch]> <out-dir>}" && cd "$2" && pwd)"
 : "${SPC_VERSION:?SPC_VERSION is required}"
 : "${STATIC_EXTS:?STATIC_EXTS is required}"
 SHARED_EXTS="${SHARED_EXTS:-}"
@@ -57,9 +59,9 @@ echo "::endgroup::"
 
 all="$STATIC_EXTS${SHARED_EXTS:+,$SHARED_EXTS}"
 
-echo "::group::Download sources for PHP $PHP_MINOR"
+echo "::group::Download sources for PHP $PHP_VERSION"
 # shellcheck disable=SC2086
-./spc download --with-php="$PHP_MINOR" --for-extensions="$all" --prefer-pre-built --retry=3 ${DOWNLOAD_ARGS:-}
+./spc download --with-php="$PHP_VERSION" --for-extensions="$all" --prefer-pre-built --retry=3 ${DOWNLOAD_ARGS:-}
 if [[ "$TARGET" == frankenphp ]]; then
   ./spc download frankenphp --retry=3
 fi
@@ -81,7 +83,7 @@ rm -rf "$OUT" && mkdir -p "$OUT/bin" "$OUT/ext" "$OUT/LICENSES"
 # fails. Rebuild without that one until every remaining extension built (at most 4 attempts).
 pending="$SHARED_EXTS"
 for attempt in 1 2 3 4; do
-  echo "::group::Build $TARGET for PHP $PHP_MINOR (attempt $attempt${pending:+, shared: $pending})"
+  echo "::group::Build $TARGET for PHP $PHP_VERSION (attempt $attempt${pending:+, shared: $pending})"
   # Start clean: libraries built for an extension we dropped would otherwise be linked
   # without their dependencies. Pre-built libraries unpack quickly.
   rm -rf buildroot source/php-src
@@ -116,6 +118,11 @@ for ext in ${SHARED_EXTS//,/ }; do
   [[ -f "$OUT/ext/$ext.so" ]] || echo "::warning::$ext.so was not built"
 done
 
+if [[ "$TARGET" == php && "$PHP_VERSION" == *.*.* ]]; then
+  built="$("$OUT/bin/php" -n -r 'echo PHP_VERSION;')"
+  [[ "$built" == "$PHP_VERSION" ]] || { echo "::error::asked for PHP $PHP_VERSION, built $built"; exit 1; }
+fi
+
 ./spc dump-license --for-extensions="$all" --dump-dir="$OUT/LICENSES" \
   || echo "::warning::license dump failed"
 
@@ -123,4 +130,4 @@ done
 find "$OUT/bin" "$OUT/ext" -type f -exec codesign --force --sign - {} \;
 
 ls -la "$OUT/bin"
-echo "built $TARGET for PHP $PHP_MINOR into $OUT"
+echo "built $TARGET for PHP $PHP_VERSION into $OUT"

@@ -1,0 +1,86 @@
+# Daily: builds and publishes every package version in versions.json that isn't published yet,
+# then rebuilds and signs the manifest (also when nothing new was built, so it never expires).
+# Flock downloads https://github.com/<repo>/releases/download/manifest/manifest.json (+ .sig).
+name: Release
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      php:
+        description: Only these PHP versions, comma-separated (default the newest of each minor)
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      any: ${{ steps.plan.outputs.any }}
+      php_macos: ${{ steps.plan.outputs.php_macos }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/flockrel/go.mod
+          cache: false
+      - id: plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PHP: ${{ inputs.php }}
+        run: go -C tools/flockrel run . plan -versions ../../versions.json -php "$PHP"
+
+  php-macos:
+    needs: plan
+    if: needs.plan.outputs.php_macos != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.php_macos) }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-php-macos.yml
+    with:
+      version: ${{ matrix.version }}
+      publish: true
+
+  manifest:
+    needs: [plan, php-macos]
+    # Also after failed builds: whatever did get published belongs in the manifest.
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/flockrel/go.mod
+          cache: false
+      - name: Build and sign
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MANIFEST_SIGNING_KEY: ${{ secrets.MANIFEST_SIGNING_KEY }}
+        run: |
+          go -C tools/flockrel build -o "$RUNNER_TEMP/flockrel" .
+          "$RUNNER_TEMP/flockrel" manifest -versions versions.json -out "$RUNNER_TEMP"
+          # The public key in the repo is the one Flock ships: catches a wrong secret.
+          "$RUNNER_TEMP/flockrel" verify -pub manifest.pub "$RUNNER_TEMP/manifest.json" "$RUNNER_TEMP/manifest.json.sig" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Publish
+        run: |
+          gh release view manifest >/dev/null 2>&1 \
+            || gh release create manifest --title "Manifest" --latest=false \
+                 --notes "Signed list of every published package. Rebuilt by the Release workflow."
+          gh release upload manifest "$RUNNER_TEMP/manifest.json" "$RUNNER_TEMP/manifest.json.sig" --clobber
