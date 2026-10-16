@@ -115,5 +115,9 @@
   },
   "manifest": {
     "expires_days": 30
+  },
+  "channels": {
+    "patch_hours": 48,
+    "beta_after_days": 7
   }
 }

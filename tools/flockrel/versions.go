@@ -47,6 +47,11 @@ type versions struct {
 	Manifest struct {
 		ExpiresDays int `json:"expires_days"`
 	} `json:"manifest"`
+	// Channels holds the timers of the channel rules (channels.go).
+	Channels struct {
+		PatchHours    int `json:"patch_hours"`
+		BetaAfterDays int `json:"beta_after_days"`
+	} `json:"channels"`
 }
 
 type pkgConfig struct {
@@ -77,6 +82,9 @@ func loadVersions(path string) (*versions, error) {
 }
 
 func (v *versions) check() error {
+	if v.Channels.PatchHours < 1 || v.Channels.BetaAfterDays < 1 {
+		return fmt.Errorf("versions.json: channels.patch_hours and channels.beta_after_days must be set")
+	}
 	for name, p := range v.Packages {
 		if _, ok := latestFuncs[name]; !ok {
 			return fmt.Errorf("versions.json: no version lookup for package %q", name)

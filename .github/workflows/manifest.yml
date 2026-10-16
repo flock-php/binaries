@@ -1,0 +1,74 @@
+# Rebuilds and signs the three channel manifests from all releases and channels.json, and uploads
+# them to the "manifest" release (Flock downloads releases/download/manifest/<file>):
+#   manifest.json               stable: what every Flock installation sees
+#   manifest-beta.json          beta: stable plus patches in their waiting time, approved new
+#                               lines and pre-releases (opt-in in Flock)
+#   manifest-experimental.json  everything published (for testing before promotion)
+# The channel rules and their timers are in tools/flockrel/channels.go and versions.json. Runs
+# after every Release, every 6 hours (so timers take effect on time, and signatures never expire),
+# and by hand.
+name: Manifest
+
+on:
+  workflow_call:
+    inputs:
+      publish:
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Upload the manifests (off - build, sign and verify only)
+        type: boolean
+        default: true
+  schedule:
+    - cron: "41 */6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    environment: release
+    # One at a time: the 6-hourly run and a Release can finish together.
+    concurrency:
+      group: manifest
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      # Scheduled runs have no inputs: they publish.
+      PUBLISH: ${{ inputs.publish != false }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/flockrel/go.mod
+          cache: false
+      - name: Build and sign
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MANIFEST_SIGNING_KEY: ${{ secrets.MANIFEST_SIGNING_KEY }}
+        run: |
+          go -C tools/flockrel build -o "$RUNNER_TEMP/flockrel" .
+          mkdir "$RUNNER_TEMP/out"
+          "$RUNNER_TEMP/flockrel" manifest -versions versions.json -channels channels.json -dry-run \
+            | tee "$RUNNER_TEMP/channels.txt"
+          "$RUNNER_TEMP/flockrel" manifest -versions versions.json -channels channels.json -out "$RUNNER_TEMP/out"
+          # The public key in the repo is the one Flock ships: catches a wrong secret.
+          for c in stable beta experimental; do
+            f=manifest.json; [[ $c == stable ]] || f="manifest-$c.json"
+            "$RUNNER_TEMP/flockrel" verify -pub manifest.pub -channel "$c" "$RUNNER_TEMP/out/$f" "$RUNNER_TEMP/out/$f.sig" \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+          { echo '```'; cat "$RUNNER_TEMP/channels.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish
+        if: env.PUBLISH == 'true'
+        run: |
+          gh release view manifest >/dev/null 2>&1 \
+            || gh release create manifest --title "Manifest" --latest=false \
+                 --notes "Signed lists of every published package, one per channel. Rebuilt by the Manifest workflow."
+          gh release upload manifest "$RUNNER_TEMP"/out/* --clobber

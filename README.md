@@ -85,13 +85,15 @@ publishing it.
 
 To rebuild versions that are already published (a security fix in a bundled library, an added
 extension, a bug the tests missed), raise the platform's `build` in `versions.json`. The next run
-builds the newest version of every line again as the new build, next to the old one. The manifest
-lists only the newest build, and Flock updates an installed package when the manifest has a higher
-build of the same version.
+builds the newest version of every line again as the new build, next to the old one. A rebuild
+starts in the experimental channel (see Channels); each channel's manifest lists the newest build
+that has reached it, and Flock updates an installed package when its channel has a higher build of
+the same version.
 
 | Workflow | What |
 |---|---|
-| `release.yml` | daily: plan, build/mirror everything missing, rebuild and sign the manifest |
+| `release.yml` | daily: plan, build/mirror everything missing, then `manifest.yml` |
+| `manifest.yml` | the three channel manifests: after every Release, every 6 hours, by hand |
 | `build-php-macos.yml` | `php` and `frankenphp` for macOS (static-php-cli) |
 | `build-php-exts-windows.yml` | `php-exts` for one PHP minor |
 | `build-frankenphp-windows.yml` | `frankenphp` for Windows |
@@ -106,31 +108,69 @@ Redis) the matching upstream source is published on the same release as
 `<package>-<version>-source.tar.gz`; Valkey for Windows has the source package of the MSYS2
 runtime it ships (LGPL) next to it.
 
-## The manifest
+## Channels
 
-After each run, `manifest.json` is rebuilt from all releases and signed with ed25519:
+Every published build is in one of three channels, and each channel has its own signed manifest
+listing the builds at its level or above:
+
+| Channel | Manifest | Who | Contains |
+|---|---|---|---|
+| stable | `manifest.json` | every Flock installation | what has been promoted |
+| beta | `manifest-beta.json` | opt-in in Flock | stable, patches in their waiting time, approved new lines, pre-releases |
+| experimental | `manifest-experimental.json` | testing before promotion | everything published |
+
+Where a build goes (`tools/flockrel/channels.go`, timers in `versions.json` under `channels`):
+
+| Build | Path |
+|---|---|
+| a patch of a line that is already stable on that platform | beta at once, stable after 48 hours |
+| a new line, package or platform, or a rebuild (higher build number) | experimental; beta once approved, then stable after 48 hours. Without a decision it moves to beta after 7 days, and to stable only when approved. |
+| a pre-release (RC, beta, alpha) | beta, never stable |
+
+What a person decided is in [`channels.json`](channels.json): approvals for beta or stable, holds
+(which stop every timer of a build) and yanks, keyed by build (`<package>-<version>-build<N>-<platform>`).
+Everything published before its `baseline` is stable. Timers aren't stored: every manifest run works
+them out from the publish times, so the manifests only depend on the releases, `channels.json` and
+the clock. `flockrel manifest -dry-run` prints every build's channel and why. A rebuild doesn't
+replace the build a channel already has until it reaches that channel.
+
+A yanked build stays listed, so Flock can warn whoever installed it, but Flock won't install it: a
+channel offers the newest build that isn't yanked, and only the yanked one when there is no other.
+
+## The manifests
+
+`manifest.yml` rebuilds and signs all three after every Release run, every 6 hours (so timers take
+effect on time and signatures never expire) and by hand:
 
 ```json
 {
   "schema": 1,
+  "channel": "stable",
   "serial": 1792168157,
   "generated": "2026-10-16T16:29:17Z",
   "expires": "2026-11-15T16:29:17Z",
   "packages": {
     "<package>": {
       "<version>": {
-        "<platform>": { "build": 1, "url": "https://…", "sha256": "…", "size": 92651566, "published": "…" }
+        "<platform>": {
+          "build": 2, "url": "https://…", "sha256": "…", "size": 92651566, "published": "…",
+          "prerelease": true,
+          "yanked": { "1": "Crashes on macOS 13; use build 2" }
+        }
       }
     }
   }
 }
 ```
 
-Flock downloads `releases/download/manifest/manifest.json` and `manifest.json.sig` and checks them
-against the public key in [`manifest.pub`](manifest.pub), which it ships with. It rejects a manifest
-that doesn't verify, has expired (30 days; the daily run re-signs it), or has a lower `serial` than
-the last one it accepted. A version only lists the platforms it was published for; every download
-is checked against the manifest's SHA-256.
+`prerelease` and `yanked` (yanked builds of that version, build number → reason) only appear when
+they apply. Flock downloads `releases/download/manifest/<manifest>` and `<manifest>.sig` for its
+channel and checks them against the public key in [`manifest.pub`](manifest.pub), which it ships
+with. It rejects a manifest that doesn't verify, isn't for the channel it asked for (`channel`), has
+expired (30 days), or has a lower `serial` than the last one it accepted for that channel. A version
+only lists the platforms it was published for; every download is checked against the manifest's
+SHA-256. `flockrel verify -pub manifest.pub -channel stable manifest.json manifest.json.sig` does the
+same checks.
 
 The signing key is the `MANIFEST_SIGNING_KEY` secret of the `release` environment. To replace it:
 
@@ -143,8 +183,9 @@ then commit `manifest.pub` and ship the new public key in Flock.
 ## Layout
 
 ```
-versions.json                    what we build: PHP per platform, extensions, FrankenPHP, service lines, manifest expiry
-tools/flockrel/                  release tooling: plan, manifest (build + sign), verify, keygen
+versions.json                    what we build: PHP per platform, extensions, FrankenPHP, service lines, manifest expiry, channel timers
+channels.json                    channel decisions: baseline, approvals, holds, yanks
+tools/flockrel/                  release tooling: plan, manifest (channels, build + sign), verify, keygen
 packages/<name>/<platform>/      build script per package and platform
 packages/<name>/mirror.sh        download + verify a vendor release (mirrored packages)
 packages/<name>/source.sh        download + verify the upstream source (builds, and published for copyleft)

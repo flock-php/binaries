@@ -1,6 +1,7 @@
 # Daily: builds and publishes every package version in versions.json that isn't published yet,
-# then rebuilds and signs the manifest (also when nothing new was built, so it never expires).
-# Flock downloads https://github.com/<repo>/releases/download/manifest/manifest.json (+ .sig).
+# then rebuilds and signs the channel manifests (manifest.yml; also when nothing new was built).
+# Flock downloads https://github.com/<repo>/releases/download/manifest/manifest.json (+ .sig), or
+# manifest-beta.json / manifest-experimental.json for those channels.
 #   php-macos  PHP and FrankenPHP for macOS (build-php-macos.yml)
 #   php-exts-windows    extension packs for Windows PHP, one per minor (build-php-exts-windows.yml)
 #   frankenphp-windows  FrankenPHP for Windows (build-frankenphp-windows.yml)
@@ -129,34 +130,9 @@ jobs:
 
   manifest:
     needs: [plan, php-macos, php-exts-windows, frankenphp-windows, builds, mirrors]
-    # Also after failed builds: whatever did get published belongs in the manifest.
+    # Also after failed builds: whatever did get published belongs in the manifests.
     if: always() && needs.plan.result == 'success'
-    runs-on: ubuntu-latest
-    environment: release
     permissions:
       contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: tools/flockrel/go.mod
-          cache: false
-      - name: Build and sign
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          MANIFEST_SIGNING_KEY: ${{ secrets.MANIFEST_SIGNING_KEY }}
-        run: |
-          go -C tools/flockrel build -o "$RUNNER_TEMP/flockrel" .
-          "$RUNNER_TEMP/flockrel" manifest -versions versions.json -out "$RUNNER_TEMP"
-          # The public key in the repo is the one Flock ships: catches a wrong secret.
-          "$RUNNER_TEMP/flockrel" verify -pub manifest.pub "$RUNNER_TEMP/manifest.json" "$RUNNER_TEMP/manifest.json.sig" \
-            | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Publish
-        run: |
-          gh release view manifest >/dev/null 2>&1 \
-            || gh release create manifest --title "Manifest" --latest=false \
-                 --notes "Signed list of every published package. Rebuilt by the Release workflow."
-          gh release upload manifest "$RUNNER_TEMP/manifest.json" "$RUNNER_TEMP/manifest.json.sig" --clobber
+    uses: ./.github/workflows/manifest.yml
+    secrets: inherit
