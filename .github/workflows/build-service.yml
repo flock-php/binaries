@@ -96,7 +96,7 @@ jobs:
         shell: msys2 {0}
         run: bash packages/valkey/windows/build.sh "$VERSION" out
 
-      # Windows PostgreSQL: MSVC, with meson (16+) or the MSVC build scripts (14, 15).
+      # Windows PostgreSQL: MSVC, with meson (17+) or the MSVC build scripts (14–16).
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows' && inputs.package == 'postgres'
       - name: Build tools
