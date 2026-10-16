@@ -83,6 +83,11 @@ type placed struct {
 	Why        string // what got it there, or what moves it on
 	Prerelease bool
 	Yanked     string
+	// Next is the channel a timer moves the build to at NextAt (0: none running). NeedsDecision:
+	// it only goes further with an approval (a new line in experimental, or in beta by its timer).
+	Next          level
+	NextAt        time.Time
+	NeedsDecision bool
 }
 
 // place works out the channel of every build at time now.
@@ -146,6 +151,9 @@ func place(builds []published, d *channelDecisions, patch, betaAfter time.Durati
 				p.Level, p.Why = stable, "patch, stable after "+patch.String()
 			} else {
 				p.Why = why
+				if !held {
+					p.Next, p.NextAt = stable, published.Add(patch)
+				}
 			}
 		default:
 			p.Kind, p.Level = "new", experimental
@@ -153,17 +161,26 @@ func place(builds []published, d *channelDecisions, patch, betaAfter time.Durati
 				p.Level, p.Why = beta, "approved for beta"
 			} else if ok, why := timer(published.Add(betaAfter), "beta"); ok {
 				p.Level, p.Why = beta, "beta after "+betaAfter.String()+" without a decision; stable only when approved"
+				p.NeedsDecision = true
 			} else {
 				p.Why = "waiting for approval; " + why
+				p.NeedsDecision = true
+				if !held {
+					p.Next, p.NextAt = beta, published.Add(betaAfter)
+				}
 			}
 			switch {
 			case ap.Stable != nil:
-				p.Level, p.Why = stable, "approved for stable"
+				p.Level, p.Why, p.NeedsDecision = stable, "approved for stable", false
+				p.Next, p.NextAt = 0, time.Time{}
 			case ap.Beta != nil:
 				if ok, why := timer(ap.Beta.Add(patch), "stable"); ok {
 					p.Level, p.Why = stable, "approved for beta, stable after "+patch.String()
 				} else {
 					p.Why = "approved for beta; " + why
+					if !held {
+						p.Next, p.NextAt = stable, ap.Beta.Add(patch)
+					}
 				}
 			}
 		}

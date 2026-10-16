@@ -55,6 +55,7 @@ func runManifest(args []string) error {
 	repo := fs.String("repo", os.Getenv("GITHUB_REPOSITORY"), "owner/name of the binaries repository")
 	outDir := fs.String("out", ".", "directory for the manifests and their signatures")
 	dryRun := fs.Bool("dry-run", false, "print every build's channel instead of writing manifests")
+	statusPath := fs.String("status", "", "also write the \"Ready for testing\" report here (empty: nothing pending), and the builds waiting for a decision to <file>.waiting")
 	fs.Parse(args)
 
 	var key ed25519.PrivateKey
@@ -72,28 +73,25 @@ func runManifest(args []string) error {
 	if err != nil {
 		return err
 	}
-	releases, err := listReleases(*repo)
+	builds, err := publishedBuilds(*repo, v)
 	if err != nil {
 		return err
 	}
-
-	var builds []published
-	for _, r := range releases {
-		parts := tagPattern.FindStringSubmatch(r.TagName)
-		if parts == nil || r.Prerelease {
-			continue
+	now := time.Now().UTC().Truncate(time.Second)
+	all := place(builds, d, v.patchWait(), v.betaWait(), now)
+	if *statusPath != "" {
+		body, waiting := statusReport(all, *repo, now)
+		if err := os.WriteFile(*statusPath, []byte(body), 0o644); err != nil {
+			return err
 		}
-		pkg, ver := parts[1], parts[2]
-		for _, a := range r.Assets {
-			if n, platform, ok := parseAsset(r.TagName, a.Name); ok {
-				builds = append(builds, published{Package: pkg, Version: ver, Platform: platform, Build: n, Line: lineOf(v, pkg, ver), Asset: a})
-			}
+		w := strings.Join(waiting, "\n")
+		if w != "" {
+			w += "\n"
+		}
+		if err := os.WriteFile(*statusPath+".waiting", []byte(w), 0o644); err != nil {
+			return err
 		}
 	}
-	now := time.Now().UTC().Truncate(time.Second)
-	patch := time.Duration(v.Channels.PatchHours) * time.Hour
-	betaAfter := time.Duration(v.Channels.BetaAfterDays) * 24 * time.Hour
-	all := place(builds, d, patch, betaAfter, now)
 
 	if *dryRun {
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -283,4 +281,27 @@ func readBase64(path string, size int) ([]byte, error) {
 		return nil, fmt.Errorf("%s: expected %d base64-encoded bytes", path, size)
 	}
 	return b, nil
+}
+
+// publishedBuilds lists every build on the releases: <package>-<version> tags with
+// <package>-<version>-build<N>-<platform> assets.
+func publishedBuilds(repo string, v *versions) ([]published, error) {
+	releases, err := listReleases(repo)
+	if err != nil {
+		return nil, err
+	}
+	var builds []published
+	for _, r := range releases {
+		parts := tagPattern.FindStringSubmatch(r.TagName)
+		if parts == nil || r.Prerelease {
+			continue
+		}
+		pkg, ver := parts[1], parts[2]
+		for _, a := range r.Assets {
+			if n, platform, ok := parseAsset(r.TagName, a.Name); ok {
+				builds = append(builds, published{Package: pkg, Version: ver, Platform: platform, Build: n, Line: lineOf(v, pkg, ver), Asset: a})
+			}
+		}
+	}
+	return builds, nil
 }

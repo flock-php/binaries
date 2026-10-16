@@ -1,0 +1,82 @@
+# Records a channel decision in channels.json, commits it to main as whoever ran the workflow, and
+# rebuilds the manifests from that commit right away (manifest.yml), so it takes effect within
+# minutes. Run it from the Actions tab; the "Ready for testing" issue lists what is waiting.
+#   promote-beta    approve for beta (then stable after the patch waiting time)
+#   promote-stable  approve for stable (never for pre-releases)
+#   hold / unhold   stop or restart every timer of a build (hold needs a reason)
+#   yank / unyank   withdraw a build, or undo that (yank needs a reason and a build number)
+# Targets: a build (postgres-18.7-build1-macos-arm64), a build on every platform (postgres-18.7-build1),
+# a version on one or every platform (postgres-18.7-macos-arm64, postgres-18.7: its newest build),
+# or all-pending (promote-beta / promote-stable: everything waiting for that step).
+name: Promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Decision
+        type: choice
+        options: [promote-beta, promote-stable, hold, unhold, yank, unyank]
+      target:
+        description: Build, version or all-pending (e.g. postgres-19.0, postgres-18.7-build1)
+        required: true
+      reason:
+        description: Why (required for hold and yank)
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote
+  cancel-in-progress: false
+
+jobs:
+  decide:
+    # Decisions only go to main.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      ACTION: ${{ inputs.action }}
+      TARGET: ${{ inputs.target }}
+      REASON: ${{ inputs.reason }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/flockrel/go.mod
+          cache: false
+      - name: Decide
+        run: |
+          go -C tools/flockrel run . decide -versions ../../versions.json -channels ../../channels.json \
+            -action "$ACTION" -target "$TARGET" -reason "$REASON" | tee "$RUNNER_TEMP/changes.txt"
+          { echo "### $ACTION $TARGET"; echo; sed 's/^/- /' "$RUNNER_TEMP/changes.txt"; } >> "$GITHUB_STEP_SUMMARY"
+      # Committed as the person who ran the workflow: the history of channels.json shows who
+      # decided what, and no bot account turns up among the repository's contributors.
+      - id: commit
+        env:
+          ACTOR: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+        run: |
+          git config user.name "$ACTOR"
+          git config user.email "$ACTOR_ID+$ACTOR@users.noreply.github.com"
+          msg="Channels: $ACTION $TARGET${REASON:+ ($REASON)}"
+          git commit -q -m "$msg" -m "$(cat "$RUNNER_TEMP/changes.txt")" channels.json
+          # Someone may have pushed since the checkout: replay the decision on top once.
+          git push -q origin HEAD:main || { git pull -q --rebase origin main && git push -q origin HEAD:main; }
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  manifest:
+    needs: decide
+    permissions:
+      contents: write
+      issues: write
+    uses: ./.github/workflows/manifest.yml
+    secrets: inherit
+    with:
+      ref: ${{ needs.decide.outputs.sha }}

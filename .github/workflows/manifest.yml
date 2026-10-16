@@ -5,8 +5,9 @@
 #                               lines and pre-releases (opt-in in Flock)
 #   manifest-experimental.json  everything published (for testing before promotion)
 # The channel rules and their timers are in tools/flockrel/channels.go and versions.json. Runs
-# after every Release, every 6 hours (so timers take effect on time, and signatures never expire),
-# and by hand.
+# after every Release and every decision (promote.yml), every 6 hours (so timers take effect on
+# time, and signatures never expire), and by hand. Keeps the "Ready for testing" issue up to date:
+# what waits for a decision, what is on its way to stable (scripts/ready-issue.sh).
 name: Manifest
 
 on:
@@ -15,6 +16,10 @@ on:
       publish:
         type: boolean
         default: true
+      ref:
+        description: Commit to build from (the Promote workflow passes the one with its decision)
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       publish:
@@ -37,6 +42,7 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write
+      issues: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -44,6 +50,8 @@ jobs:
       PUBLISH: ${{ inputs.publish != false }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: tools/flockrel/go.mod
@@ -57,7 +65,8 @@ jobs:
           mkdir "$RUNNER_TEMP/out"
           "$RUNNER_TEMP/flockrel" manifest -versions versions.json -channels channels.json -dry-run \
             | tee "$RUNNER_TEMP/channels.txt"
-          "$RUNNER_TEMP/flockrel" manifest -versions versions.json -channels channels.json -out "$RUNNER_TEMP/out"
+          "$RUNNER_TEMP/flockrel" manifest -versions versions.json -channels channels.json -out "$RUNNER_TEMP/out" \
+            -status "$RUNNER_TEMP/status.md"
           # The public key in the repo is the one Flock ships: catches a wrong secret.
           for c in stable beta experimental; do
             f=manifest.json; [[ $c == stable ]] || f="manifest-$c.json"
@@ -72,3 +81,6 @@ jobs:
             || gh release create manifest --title "Manifest" --latest=false \
                  --notes "Signed lists of every published package, one per channel. Rebuilt by the Manifest workflow."
           gh release upload manifest "$RUNNER_TEMP"/out/* --clobber
+      - name: Ready for testing issue
+        if: env.PUBLISH == 'true'
+        run: bash scripts/ready-issue.sh "$RUNNER_TEMP/status.md"

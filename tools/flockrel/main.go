@@ -1,9 +1,10 @@
 // flockrel is the release tooling for Flock's binaries:
 //
 //	flockrel plan     -versions versions.json -repo owner/name   which packages still need building
-//	flockrel manifest -versions versions.json -repo owner/name -out dir
-//	                                                             manifest.json + manifest.json.sig from the releases
-//	flockrel verify   -pub manifest.pub manifest.json manifest.json.sig
+//	flockrel manifest -versions versions.json -channels channels.json -out dir [-status file] [-dry-run]
+//	                                                             the three channel manifests (+ .sig) from the releases
+//	flockrel decide   -action promote-beta -target postgres-19.0  record a channel decision in channels.json
+//	flockrel verify   -pub manifest.pub [-channel stable] manifest.json manifest.json.sig
 //	flockrel keygen   -pub manifest.pub                          new signing key: public to file, private to stdout
 //
 // Releases are tagged <package>-<version> and hold assets named <package>-<version>-build<N>-<platform>.<ext>;
@@ -27,6 +28,8 @@ func main() {
 		err = runPlan(args)
 	case "manifest":
 		err = runManifest(args)
+	case "decide":
+		err = runDecide(args)
 	case "verify":
 		err = runVerify(args)
 	case "keygen":
@@ -41,6 +44,6 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: flockrel plan|manifest|verify|keygen [flags]")
+	fmt.Fprintln(os.Stderr, "usage: flockrel plan|manifest|decide|verify|keygen [flags]")
 	os.Exit(2)
 }

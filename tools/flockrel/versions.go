@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 )
 
 // versions mirrors versions.json, the single place where what we build is pinned.
@@ -120,4 +121,9 @@ func (v *versions) packageNames() []string {
 // inLine reports whether version belongs to a release line: 8.4.6 to 8.4, 22.23.3 to 22.
 func inLine(version, line string) bool {
 	return version == line || strings.HasPrefix(version, line+".")
+}
+
+func (v *versions) patchWait() time.Duration { return time.Duration(v.Channels.PatchHours) * time.Hour }
+func (v *versions) betaWait() time.Duration {
+	return time.Duration(v.Channels.BetaAfterDays) * 24 * time.Hour
 }

@@ -93,7 +93,8 @@ the same version.
 | Workflow | What |
 |---|---|
 | `release.yml` | daily: plan, build/mirror everything missing, then `manifest.yml` |
-| `manifest.yml` | the three channel manifests: after every Release, every 6 hours, by hand |
+| `manifest.yml` | the three channel manifests and the Ready for testing issue: after every Release and decision, every 6 hours, by hand |
+| `promote.yml` | records a channel decision (promote, hold, yank) in `channels.json` |
 | `build-php-macos.yml` | `php` and `frankenphp` for macOS (static-php-cli) |
 | `build-php-exts-windows.yml` | `php-exts` for one PHP minor |
 | `build-frankenphp-windows.yml` | `frankenphp` for Windows |
@@ -136,6 +137,28 @@ replace the build a channel already has until it reaches that channel.
 
 A yanked build stays listed, so Flock can warn whoever installed it, but Flock won't install it: a
 channel offers the newest build that isn't yanked, and only the yanked one when there is no other.
+
+### Deciding
+
+The open **Ready for testing** issue (label `channels`) lists what waits for a decision, what is on
+its way to stable and when, and what is held, yanked or a pre-release. The Manifest workflow keeps
+it up to date, comments when a build newly waits for a decision, and closes it when nothing is
+pending.
+
+Decisions are made with the **Promote** workflow (Actions → Promote → Run workflow):
+
+| Action | Does |
+|---|---|
+| `promote-beta` | approves for beta; stable follows after 48 hours |
+| `promote-stable` | approves for stable (never for pre-releases) |
+| `hold` / `unhold` | stops or restarts every timer of a build (hold needs a reason) |
+| `yank` / `unyank` | withdraws a build or undoes it (needs a reason and the build number) |
+
+The target is a build (`postgres-18.7-build1-macos-arm64`), a build on every platform
+(`postgres-18.7-build1`), a version on one or every platform (`postgres-18.7-macos-arm64`,
+`postgres-18.7`: its newest build there), or `all-pending` for everything waiting for that step. The
+workflow commits the change to `channels.json` as whoever ran it and rebuilds the manifests right
+away. `flockrel decide` does the same locally.
 
 ## The manifests
 
@@ -193,6 +216,7 @@ scripts/lib.sh                   download and checksum helpers for the package s
 scripts/macos/                   static OpenSSL build, relocation of macOS installs (@loader_path)
 scripts/windows/                 php-windows-builder setup, extension packs, Windows smoke tests
 scripts/publish.sh               upload a package (and its sources) to its release
+scripts/ready-issue.sh           keep the Ready for testing issue up to date
 scripts/verify-macos.sh          fails when a Mach-O file links outside macOS or targets macOS > 13
 scripts/smoke-*.sh               smoke tests run against every package before it is published
 ```
