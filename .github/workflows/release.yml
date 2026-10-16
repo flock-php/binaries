@@ -1,7 +1,9 @@
 # Daily: builds and publishes every package version in versions.json that isn't published yet,
 # then rebuilds and signs the manifest (also when nothing new was built, so it never expires).
 # Flock downloads https://github.com/<repo>/releases/download/manifest/manifest.json (+ .sig).
-#   php-macos  PHP for macOS (build-php-macos.yml)
+#   php-macos  PHP and FrankenPHP for macOS (build-php-macos.yml)
+#   php-exts-windows    extension packs for Windows PHP, one per minor (build-php-exts-windows.yml)
+#   frankenphp-windows  FrankenPHP for Windows (build-frankenphp-windows.yml)
 #   builds     services built from source: PostgreSQL, MariaDB (macOS), Valkey, Redis (build-service.yml)
 #   mirrors    mirrored from the vendor: PHP for Windows, MySQL, MongoDB, Node.js, ... (mirror.yml)
 name: Release
@@ -15,7 +17,7 @@ on:
         description: Only these PHP versions, comma-separated (default the newest of each minor)
         default: ""
       packages:
-        description: Only these packages, comma-separated, "php" for PHP (default all)
+        description: Only these packages, comma-separated, also "php", "php-exts", "frankenphp" (default all)
         default: ""
 
 permissions:
@@ -31,6 +33,8 @@ jobs:
     outputs:
       any: ${{ steps.plan.outputs.any }}
       php_macos: ${{ steps.plan.outputs.php_macos }}
+      php_exts_windows: ${{ steps.plan.outputs.php_exts_windows }}
+      frankenphp_windows: ${{ steps.plan.outputs.frankenphp_windows }}
       builds: ${{ steps.plan.outputs.builds }}
       mirrors: ${{ steps.plan.outputs.mirrors }}
     steps:
@@ -56,6 +60,35 @@ jobs:
     permissions:
       contents: write
     uses: ./.github/workflows/build-php-macos.yml
+    with:
+      version: ${{ matrix.version }}
+      package: ${{ matrix.package }}
+      publish: true
+
+  php-exts-windows:
+    needs: plan
+    if: needs.plan.outputs.php_exts_windows != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.php_exts_windows) }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-php-exts-windows.yml
+    with:
+      minor: ${{ matrix.version }}
+      publish: true
+
+  frankenphp-windows:
+    needs: plan
+    if: needs.plan.outputs.frankenphp_windows != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.frankenphp_windows) }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-frankenphp-windows.yml
     with:
       version: ${{ matrix.version }}
       publish: true
@@ -95,7 +128,7 @@ jobs:
       publish: true
 
   manifest:
-    needs: [plan, php-macos, builds, mirrors]
+    needs: [plan, php-macos, php-exts-windows, frankenphp-windows, builds, mirrors]
     # Also after failed builds: whatever did get published belongs in the manifest.
     if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-latest

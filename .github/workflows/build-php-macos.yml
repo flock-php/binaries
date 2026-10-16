@@ -1,8 +1,12 @@
 # Builds one PHP release for macOS (Apple Silicon) with static-php-cli, tests it, and publishes
-# it as php-<version>-build<N>-macos-arm64.tar.gz on the php-<version> release, N being the build
-# number in versions.json. Called by release.yml for every version without that build yet; run it
-# by hand to test a build without publishing.
-# Nothing is published unless every check passed, and a published asset is never replaced.
+# it on the <package>-<version> release as <package>-<version>-build<N>-macos-arm64.tar.gz:
+#   php         bin/php and bin/php-fpm (build number: php.macos.build)
+#   frankenphp  bin/frankenphp with the same PHP embedded, thread-safe (frankenphp.macos.build,
+#               FrankenPHP release: frankenphp.version)
+# Both get the compiled-in extensions and the shared ones in ext/ from php.macos in versions.json.
+# Called by release.yml for every version without that build yet; run it by hand to test a build
+# without publishing. Nothing is published unless every check passed, and a published asset is
+# never replaced.
 name: Build PHP macOS
 
 on:
@@ -11,6 +15,9 @@ on:
       version:
         type: string
         required: true
+      package:
+        type: string
+        default: php
       publish:
         type: boolean
         default: false
@@ -19,6 +26,10 @@ on:
       version:
         description: PHP version (major.minor.patch)
         required: true
+      package:
+        description: What to build
+        type: choice
+        options: [php, frankenphp]
       publish:
         description: Publish the package as a release asset
         type: boolean
@@ -29,10 +40,11 @@ permissions:
 
 env:
   VERSION: ${{ inputs.version }}
+  PKG: ${{ inputs.package }}
 
 jobs:
   build:
-    name: build ${{ inputs.version }}
+    name: build ${{ inputs.package }} ${{ inputs.version }}
     runs-on: macos-15
     timeout-minutes: 120
     outputs:
@@ -45,9 +57,18 @@ jobs:
       - name: Read versions.json
         id: config
         run: |
-          jq -r '.php.macos | "BUILD=\(.build)\nSPC_VERSION=\(.spc)\nMIN_OS=\(.min_os)\nSTATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions)"' versions.json >> "$GITHUB_ENV"
+          jq -r '.php.macos | "SPC_VERSION=\(.spc)\nMIN_OS=\(.min_os)\nSTATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions)"' versions.json >> "$GITHUB_ENV"
           echo "MINOR=$(cut -d. -f1-2 <<<"$VERSION")" >> "$GITHUB_ENV"
-          asset="php-$VERSION-build$(jq -r .php.macos.build versions.json)-macos-arm64.tar.gz"
+          case "$PKG" in
+            php) build="$(jq -r .php.macos.build versions.json)" ;;
+            frankenphp)
+              build="$(jq -r .frankenphp.macos.build versions.json)"
+              echo "TARGET=frankenphp" >> "$GITHUB_ENV"
+              echo "FRANKENPHP_VERSION=$(jq -r .frankenphp.version versions.json)" >> "$GITHUB_ENV" ;;
+            *) echo "::error::unknown package $PKG"; exit 1 ;;
+          esac
+          echo "BUILD=$build" >> "$GITHUB_ENV"
+          asset="$PKG-$VERSION-build$build-macos-arm64.tar.gz"
           echo "ASSET=$asset" >> "$GITHUB_ENV"
           echo "asset=$asset" >> "$GITHUB_OUTPUT"
 
@@ -55,8 +76,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: spc-work/downloads
-          key: spc-downloads-${{ env.SPC_VERSION }}-${{ inputs.version }}-${{ hashFiles('versions.json') }}
-          restore-keys: spc-downloads-${{ env.SPC_VERSION }}-${{ env.MINOR }}
+          key: spc-downloads-${{ env.SPC_VERSION }}-${{ inputs.package }}-${{ inputs.version }}-${{ hashFiles('versions.json') }}
+          restore-keys: spc-downloads-${{ env.SPC_VERSION }}-${{ inputs.package }}-${{ env.MINOR }}
 
       - name: Build
         run: MACOSX_DEPLOYMENT_TARGET="$MIN_OS" bash packages/php/macos/build.sh "$VERSION" out
@@ -66,16 +87,17 @@ jobs:
 
       # Every shared extension in versions.json has to build and load for a release.
       - name: Smoke test
-        run: REQUIRE_SHARED=1 bash scripts/smoke-php.sh out "$STATIC_EXTS" "$SHARED_EXTS"
+        run: bash scripts/smoke-php-package.sh "$PKG" out
 
       - name: Package
         run: |
-          jq -n --arg version "$VERSION" --argjson build "$BUILD" --arg commit "$GITHUB_SHA" --arg spc "$SPC_VERSION" \
-                --arg min_os "$MIN_OS" --arg static "$STATIC_EXTS" --arg shared "$SHARED_EXTS" \
-                --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{package: "php", version: $version, build: $build, platform: "macos-arm64", min_os: $min_os,
+          jq -n --arg package "$PKG" --arg version "$VERSION" --argjson build "$BUILD" --arg commit "$GITHUB_SHA" \
+                --arg spc "$SPC_VERSION" --arg min_os "$MIN_OS" --arg static "$STATIC_EXTS" --arg shared "$SHARED_EXTS" \
+                --arg frankenphp "${FRANKENPHP_VERSION:-}" --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{package: $package, version: $version, build: $build, platform: "macos-arm64", min_os: $min_os,
               built: $built, commit: $commit, static_php_cli: $spc,
-              extensions: {compiled_in: ($static | split(",")), shared: ($shared | split(","))}}' \
+              extensions: {compiled_in: ($static | split(",")), shared: ($shared | split(","))}}
+             + (if $frankenphp != "" then {frankenphp: $frankenphp} else {} end)' \
             > out/flock-package.json
           tar -C out -czf "$ASSET" .
           shasum -a 256 "$ASSET" | tee -a "$GITHUB_STEP_SUMMARY"
@@ -88,7 +110,7 @@ jobs:
 
   # The oldest Apple Silicon runner with Homebrew moved away: closest to a user's Mac.
   portable:
-    name: run ${{ inputs.version }} without Homebrew
+    name: run ${{ inputs.package }} ${{ inputs.version }} without Homebrew
     needs: build
     runs-on: macos-14
     env:
@@ -98,14 +120,15 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: ${{ env.ASSET }}
+      # Before Homebrew goes: jq is one of its tools.
+      - name: Read versions.json
+        run: jq -r '.php.macos | "STATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions)"' versions.json >> "$GITHUB_ENV"
       - name: Hide Homebrew
         run: sudo mv /opt/homebrew /opt/homebrew.hidden
       - name: Smoke test
         run: |
           mkdir pkg && tar -C pkg -xzf "$ASSET"
-          REQUIRE_SHARED=1 bash scripts/smoke-php.sh pkg \
-            "$(jq -r '.php.macos.static_extensions' versions.json)" \
-            "$(jq -r '.php.macos.shared_extensions' versions.json)"
+          bash scripts/smoke-php-package.sh "$PKG" pkg
 
   publish:
     needs: [build, portable]
@@ -116,16 +139,10 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      TAG: php-${{ inputs.version }}
       ASSET: ${{ needs.build.outputs.asset }}
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           name: ${{ env.ASSET }}
-      - name: Upload release asset
-        run: |
-          gh release view "$TAG" >/dev/null 2>&1 \
-            || gh release create "$TAG" --title "PHP $VERSION" --latest=false \
-                 --notes "PHP $VERSION built for Flock. Packages are listed in the signed manifest."
-          # No --clobber: a published asset is never replaced.
-          gh release upload "$TAG" "$ASSET"
+      - run: bash scripts/publish.sh "$PKG" "$VERSION" "$ASSET"

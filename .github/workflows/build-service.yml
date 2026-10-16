@@ -53,6 +53,7 @@ jobs:
     timeout-minutes: 180
     outputs:
       asset: ${{ steps.config.outputs.asset }}
+      sources: ${{ steps.sources.outputs.any }}
     env:
       GITHUB_TOKEN: ${{ github.token }}
     steps:
@@ -142,6 +143,18 @@ jobs:
           path: ${{ steps.config.outputs.asset }}
           retention-days: 7
 
+      # Sources a build adds for its license (the MSYS2 runtime for Valkey on Windows), uploaded
+      # to the release next to the package.
+      - id: sources
+        shell: bash
+        run: echo "any=$([[ -n "$(ls -A sources 2>/dev/null)" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        if: steps.sources.outputs.any == 'true'
+        with:
+          name: ${{ steps.config.outputs.asset }}-sources
+          path: sources/*
+          retention-days: 7
+
   # A clean runner: on macOS the oldest Apple Silicon image with Homebrew moved away (closest to
   # a user's Mac); on Windows without MSYS2 runtimes on PATH, so only the bundled DLLs are used.
   test:
@@ -196,4 +209,9 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: ${{ env.ASSET }}
-      - run: bash scripts/publish.sh "$PKG" "$VERSION" "$ASSET"
+      - uses: actions/download-artifact@v8
+        if: needs.build.outputs.sources == 'true'
+        with:
+          name: ${{ env.ASSET }}-sources
+          path: sources
+      - run: bash scripts/publish.sh "$PKG" "$VERSION" "$ASSET" sources/*

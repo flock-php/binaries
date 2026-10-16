@@ -1,0 +1,142 @@
+# Builds the extension pack for one PHP minor on Windows: thread-safe x64 DLLs, so they load into
+# the official windows.php.net build Flock installs and into FrankenPHP for Windows, which embeds it.
+#   from source  php.windows.extensions.from_source in versions.json, with php-windows-builder
+#                from the GitHub tag (or url, another source php-windows-builder can fetch);
+#                refs.<minor> picks another release for that minor, and an extension without a
+#                ref for a minor is left out. imagick reports its version as "@PACKAGE_VERSION@"
+#                on Windows, as in the imagick maintainers' own Windows DLLs.
+#   mongodb      the MongoDB maintainers' own signed DLLs (PHP 8.1+), checked against GitHub's SHA-256
+# Published as php-exts-<minor>-build<N>-windows-x64.zip on the php-exts-<minor> release:
+#   ext/php_<name>.dll   the extensions
+#   *.dll                libraries they need next to php.exe (ImageMagick's for imagick)
+#   LICENSES/            one license per extension and library
+# Each DLL must load into the official PHP build of the minor before anything is published.
+name: Build PHP extensions Windows
+
+on:
+  workflow_call:
+    inputs:
+      minor:
+        type: string
+        required: true
+      publish:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      minor:
+        description: PHP minor (e.g. 8.4)
+        required: true
+      publish:
+        description: Publish the package as a release asset
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  MINOR: ${{ inputs.minor }}
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.config.outputs.matrix }}
+      asset: ${{ steps.config.outputs.asset }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: config
+        run: |
+          echo "asset=php-exts-$MINOR-build$(jq -r .php.windows.extensions.build versions.json)-windows-x64.zip" >> "$GITHUB_OUTPUT"
+          matrix="$(jq -c --arg m "$MINOR" '[.php.windows.extensions.from_source | to_entries[]
+            | {name: .key, repo: .value.repo, url: (.value.url // ("https://github.com/" + .value.repo)),
+               ref: (.value.refs[$m] // .value.ref), libs: (.value.libs // ""), args: (.value.args // "")}
+            | select(.ref != null)]' versions.json)"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "$matrix" | jq .
+
+  build:
+    name: ${{ matrix.name }} ${{ matrix.ref }} / PHP ${{ inputs.minor }}
+    needs: config
+    runs-on: windows-2022
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.config.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      # Patched copy until https://github.com/php/php-windows-builder/issues/34 is fixed.
+      - name: Prepare php-windows-builder
+        shell: pwsh
+        run: ./scripts/windows/prepare-builder.ps1
+      - name: Build
+        uses: ./.builder/extension
+        with:
+          extension-url: ${{ matrix.url }}
+          extension-ref: ${{ matrix.ref }}
+          php-version: ${{ inputs.minor }}
+          arch: x64
+          ts: ts
+          libs: ${{ matrix.libs }}
+          args: ${{ matrix.args }}
+          run-tests: false
+      - name: List output
+        shell: pwsh
+        run: Get-ChildItem -Recurse artifacts | Select-Object FullName, Length | Format-Table -AutoSize
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ext-${{ matrix.name }}-${{ inputs.minor }}
+          path: artifacts/*
+          retention-days: 7
+
+  # A fresh runner: assembles the pack and loads every DLL into the official PHP build.
+  package:
+    name: package and test PHP ${{ inputs.minor }}
+    needs: [config, build]
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      ASSET: ${{ needs.config.outputs.asset }}
+      EXTENSIONS: ${{ needs.config.outputs.matrix }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: ext-*-${{ inputs.minor }}
+          path: exts
+      - name: Package and test
+        shell: pwsh
+        run: |
+          ./scripts/windows/package-php-exts.ps1 -Minor $env:MINOR -Exts exts -Out pkg `
+            -MongoDB (Get-Content versions.json -Raw | ConvertFrom-Json).php.windows.extensions.mongodb
+          Push-Location pkg
+          7z a -tzip -bd "../$env:ASSET" . | Out-Null
+          Pop-Location
+          "$((Get-FileHash $env:ASSET -Algorithm SHA256).Hash.ToLower())  $env:ASSET" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ASSET }}
+          path: ${{ env.ASSET }}
+          retention-days: 7
+
+  publish:
+    needs: [config, package]
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ASSET: ${{ needs.config.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ASSET }}
+      - run: bash scripts/publish.sh php-exts "$MINOR" "$ASSET"

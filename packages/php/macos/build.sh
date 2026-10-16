@@ -9,6 +9,7 @@
 #   SHARED_EXTS     comma-separated extensions built as .so (optional)
 #   TARGET          php (default: bin/php, bin/php-fpm) or frankenphp (bin/frankenphp, PHP >= 8.2)
 #   DOWNLOAD_ARGS   extra arguments for `spc download`, e.g. --custom-url=xdebug:https://… (optional)
+#   FRANKENPHP_VERSION  FrankenPHP release for TARGET=frankenphp, e.g. 1.13.0 (default: newest)
 #   WORK_DIR        static-php-cli workspace (default: ./spc-work)
 #   GITHUB_TOKEN    lets static-php-cli query GitHub without the anonymous rate limit
 #
@@ -63,7 +64,9 @@ echo "::group::Download sources for PHP $PHP_VERSION"
 # shellcheck disable=SC2086
 ./spc download --with-php="$PHP_VERSION" --for-extensions="$all" --prefer-pre-built --retry=3 ${DOWNLOAD_ARGS:-}
 if [[ "$TARGET" == frankenphp ]]; then
-  ./spc download frankenphp --retry=3
+  # FRANKENPHP_VERSION pins the release; without it static-php-cli takes the newest.
+  ./spc download frankenphp --retry=3 \
+    ${FRANKENPHP_VERSION:+--custom-url="frankenphp:https://github.com/php/frankenphp/archive/refs/tags/v$FRANKENPHP_VERSION.tar.gz"}
 fi
 echo "::endgroup::"
 
@@ -125,6 +128,9 @@ fi
 
 ./spc dump-license --for-extensions="$all" --dump-dir="$OUT/LICENSES" \
   || echo "::warning::license dump failed"
+if [[ "$TARGET" == frankenphp ]]; then
+  cp source/frankenphp/LICENSE "$OUT/LICENSES/frankenphp.txt"
+fi
 
 # Binaries must be signed to run on Apple Silicon; re-sign after copying/stripping.
 find "$OUT/bin" "$OUT/ext" -type f -exec codesign --force --sign - {} \;

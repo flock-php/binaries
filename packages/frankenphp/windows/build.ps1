@@ -3,10 +3,12 @@
 # Go + clang (from Visual Studio), vcpkg (brotli, pthreads), e-dant/watcher, PHP TS + devel pack.
 # The result is a directory with frankenphp.exe next to the complete official PHP TS build.
 #
-# Usage: packages/frankenphp/windows/build.ps1 -Php 8.4 -FrankenPHP v1.13.0 -Out out
+# Usage: packages/frankenphp/windows/build.ps1 -Version 8.4.26 -FrankenPHP 1.13.0 -Out out
+#   -Version  the PHP release, which must be windows.php.net's current build of its minor (only
+#             current builds have published checksums)
 #   needs: go on PATH (it fetches the version go.mod requires), GH_TOKEN for downloading watcher with gh
 param(
-    [Parameter(Mandatory)] [string] $Php,
+    [Parameter(Mandatory)] [string] $Version,
     [Parameter(Mandatory)] [string] $FrankenPHP,
     [Parameter(Mandatory)] [string] $Out
 )
@@ -15,17 +17,25 @@ $ProgressPreference = 'SilentlyContinue'
 $work = Join-Path (Get-Location) 'frankenphp-work'
 New-Item -ItemType Directory -Force $work | Out-Null
 $Out = (New-Item -ItemType Directory -Force $Out).FullName
+$Php = ($Version -split '\.')[0..1] -join '.'
+$FrankenPHP = $FrankenPHP.TrimStart('v')
 
-# PHP: releases.json instead of the directory listing (403 since October 2026).
-$releases = Invoke-RestMethod https://windows.php.net/downloads/releases/releases.json
+# PHP: releases.json instead of the directory listing (403 since October 2026). Both the build
+# and its devel pack (headers, import libraries) are checked against its SHA-256.
+$releases = Invoke-RestMethod https://downloads.php.net/~windows/releases/releases.json
 $entry = $releases.$Php
 $key = $entry.PSObject.Properties.Name | Where-Object { $_ -match '^ts-v[sc]\d+-x64$' } | Select-Object -First 1
 if (-not $key) { throw "no thread-safe x64 build of PHP $Php in releases.json" }
 $version = $entry.version
+if ($version -ne $Version) { throw "windows.php.net's current PHP $Php is $version, not $Version" }
 Write-Output "PHP $version ($key)"
 foreach ($pack in 'zip', 'devel_pack') {
     $file = $entry.$key.$pack.path
-    Invoke-WebRequest "https://downloads.php.net/~windows/releases/$file" -OutFile (Join-Path $work "$pack.zip")
+    $dest = Join-Path $work "$pack.zip"
+    Invoke-WebRequest "https://downloads.php.net/~windows/releases/$file" -OutFile $dest
+    $sum = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLower()
+    if ($sum -ne $entry.$key.$pack.sha256.ToLower()) { throw "$file`: SHA-256 $sum, expected $($entry.$key.$pack.sha256)" }
+    Write-Output "✓ $file SHA-256 $sum"
 }
 Expand-Archive (Join-Path $work 'zip.zip') -DestinationPath $Out -Force
 Expand-Archive (Join-Path $work 'devel_pack.zip') -DestinationPath (Join-Path $work 'devel') -Force
@@ -51,7 +61,7 @@ Update-PhpHeader 'zend_call_stack.h' "#include `"zend_portability.h`"`n#ifdef __
 # FrankenPHP source and its native dependencies.
 $src = Join-Path $work 'frankenphp'
 if (-not (Test-Path $src)) {
-    git -c advice.detachedHead=false clone -q --depth 1 --branch $FrankenPHP https://github.com/php/frankenphp.git $src
+    git -c advice.detachedHead=false clone -q --depth 1 --branch "v$FrankenPHP" https://github.com/php/frankenphp.git $src
 }
 Push-Location $src
 & (Join-Path $env:VCPKG_INSTALLATION_ROOT 'vcpkg.exe') install
@@ -92,4 +102,13 @@ Copy-Item (Join-Path $watcherRoot 'libwatcher-c.dll') $Out -Force
 foreach ($dll in 'brotlienc', 'brotlidec', 'brotlicommon', 'pthreadVC3') {
     Copy-Item (Join-Path $vcpkgRoot "bin\$dll.dll") $Out -Force
 }
+
+# Licenses of what we add to the official PHP build (which carries its own, license.txt).
+$licenses = New-Item -ItemType Directory -Force (Join-Path $Out 'LICENSES')
+Copy-Item (Join-Path $src 'LICENSE') (Join-Path $licenses 'frankenphp.txt')
+foreach ($port in Get-ChildItem (Join-Path $vcpkgRoot 'share') -Directory) {
+    $copyright = Join-Path $port.FullName 'copyright'
+    if (Test-Path $copyright) { Copy-Item $copyright (Join-Path $licenses "$($port.Name).txt") }
+}
+Invoke-WebRequest https://raw.githubusercontent.com/e-dant/watcher/HEAD/license -OutFile (Join-Path $licenses 'watcher.txt')
 & (Join-Path $Out 'frankenphp.exe') version

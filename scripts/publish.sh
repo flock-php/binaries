@@ -2,10 +2,11 @@
 # Uploads a package to its release <package>-<version>, creating the release if needed. For
 # packages with publish_source in versions.json (GPL, SSPL, AGPL), the upstream source tarball
 # is uploaded first as <package>-<version>-source.<ext>, once per release.
+# Further files (sources a build adds for its license) are uploaded the same way, once per release.
 # A published asset is never replaced: uploading one that exists fails.
-# Usage: scripts/publish.sh <package> <version> <asset-file>     (GH_TOKEN, GH_REPO set)
+# Usage: scripts/publish.sh <package> <version> <asset-file> [<extra-file>...]   (GH_TOKEN, GH_REPO set)
 set -euo pipefail
-PKG="$1"; V="$2"; ASSET="$3"
+PKG="$1"; V="$2"; ASSET="$3"; shift 3
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TAG="$PKG-$V"
 
@@ -13,7 +14,8 @@ title() {
   case "$PKG" in
     postgres) echo PostgreSQL ;; mariadb) echo MariaDB ;; mysql) echo MySQL ;; mongodb) echo MongoDB ;;
     redis) echo Redis ;; valkey) echo Valkey ;; meilisearch) echo Meilisearch ;; typesense) echo Typesense ;;
-    rustfs) echo RustFS ;; node) echo Node.js ;; php) echo PHP ;; *) echo "$PKG" ;;
+    rustfs) echo RustFS ;; node) echo Node.js ;; php) echo PHP ;; php-exts) echo "PHP extensions" ;;
+    frankenphp) echo "FrankenPHP for PHP" ;; *) echo "$PKG" ;;
   esac
 }
 
@@ -34,6 +36,15 @@ if [[ "$(jq -r --arg p "$PKG" '.packages[$p].publish_source // false' "$ROOT/ver
     gh release upload "$TAG" "$tmp/$src" || gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx "$src"
   fi
 fi
+
+# Extra files: once per release (another platform may have uploaded the same one).
+for extra in "$@"; do
+  [[ -f "$extra" ]] || continue
+  name="$(basename "$extra")"
+  if ! grep -qx "$name" <<<"$assets"; then
+    gh release upload "$TAG" "$extra" || gh release view "$TAG" --json assets --jq ".assets[].name" | grep -qx "$name"
+  fi
+done
 
 # No --clobber: a published asset is never replaced.
 gh release upload "$TAG" "$ASSET"

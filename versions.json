@@ -10,8 +10,26 @@
     },
     "windows": {
       "minors": ["7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"],
-      "build": 1
+      "build": 1,
+      "extensions": {
+        "build": 1,
+        "from_source": {
+          "apcu": { "repo": "krakjoe/apcu", "ref": "v5.1.28" },
+          "igbinary": { "repo": "igbinary/igbinary", "ref": "3.2.16", "refs": { "8.5": "3.2.17RC1" }, "args": "--enable-igbinary=yes" },
+          "imagick": { "repo": "Imagick/imagick", "ref": "3.8.1", "libs": "ImageMagick-7" },
+          "pcov": { "repo": "krakjoe/pcov", "ref": "v1.0.12" },
+          "redis": { "repo": "phpredis/phpredis", "ref": "6.3.0" },
+          "xdebug": { "repo": "xdebug/xdebug", "ref": "3.5.3", "refs": { "7.4": "3.1.6" }, "args": "--with-xdebug=shared" }
+        },
+        "mongodb": "2.5.5"
+      }
     }
+  },
+  "frankenphp": {
+    "version": "1.13.0",
+    "minors": ["8.2", "8.3", "8.4", "8.5"],
+    "macos": { "build": 1 },
+    "windows": { "build": 1 }
   },
   "packages": {
     "postgres": {

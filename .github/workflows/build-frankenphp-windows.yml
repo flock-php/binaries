@@ -1,0 +1,109 @@
+# Builds FrankenPHP for Windows for one PHP release (packages/frankenphp/windows/build.ps1):
+# frankenphp.exe next to the official thread-safe PHP build of that version from windows.php.net,
+# which it is linked against. Tested on a fresh runner (CLI, extensions, a request, worker mode),
+# then published as frankenphp-<php version>-build<N>-windows-x64.zip on the frankenphp-<php
+# version> release. FrankenPHP's own release is frankenphp.version in versions.json; raise
+# frankenphp.windows.build to rebuild with a new one.
+name: Build FrankenPHP Windows
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      publish:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: PHP version (major.minor.patch, windows.php.net's current build of its minor)
+        required: true
+      publish:
+        description: Publish the package as a release asset
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  VERSION: ${{ inputs.version }}
+
+jobs:
+  build:
+    name: build frankenphp ${{ inputs.version }}
+    runs-on: windows-2022
+    timeout-minutes: 90
+    outputs:
+      asset: ${{ steps.config.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: config
+        shell: bash
+        run: |
+          echo "BUILD=$(jq -r .frankenphp.windows.build versions.json)" >> "$GITHUB_ENV"
+          echo "FRANKENPHP_VERSION=$(jq -r .frankenphp.version versions.json)" >> "$GITHUB_ENV"
+          echo "asset=frankenphp-$VERSION-build$(jq -r .frankenphp.windows.build versions.json)-windows-x64.zip" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.x"
+          cache: false
+      - name: Build
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./packages/frankenphp/windows/build.ps1 -Version $env:VERSION -FrankenPHP $env:FRANKENPHP_VERSION -Out out
+      - name: Package
+        shell: bash
+        env:
+          ASSET: ${{ steps.config.outputs.asset }}
+        run: |
+          jq -n --arg version "$VERSION" --argjson build "$BUILD" --arg frankenphp "$FRANKENPHP_VERSION" \
+                --arg commit "$GITHUB_SHA" --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{package: "frankenphp", version: $version, build: $build, platform: "windows-x64",
+              frankenphp: $frankenphp, built: $built, commit: $commit}' > out/flock-package.json
+          (cd out && 7z a -tzip -bd "../$ASSET" . >/dev/null)
+          echo "$(sha256sum "$ASSET")  ($(du -h "$ASSET" | cut -f1))" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.config.outputs.asset }}
+          path: ${{ steps.config.outputs.asset }}
+          retention-days: 7
+
+  test:
+    name: run frankenphp ${{ inputs.version }}
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      ASSET: ${{ needs.build.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ASSET }}
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory pkg | Out-Null
+          & "$env:SystemRoot/System32/tar.exe" -xf $env:ASSET -C pkg
+          ./scripts/windows/smoke-frankenphp.ps1 -Dir pkg -Php (($env:VERSION -split '\.')[0..1] -join '.')
+
+  publish:
+    needs: [build, test]
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ASSET: ${{ needs.build.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ASSET }}
+      - run: bash scripts/publish.sh frankenphp "$VERSION" "$ASSET"

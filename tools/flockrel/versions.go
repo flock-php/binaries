@@ -24,8 +24,23 @@ type versions struct {
 		Windows struct {
 			Build  int      `json:"build"`
 			Minors []string `json:"minors"`
+			// Extensions are one pack per minor (php-exts-<minor>), rebuilt by raising build.
+			Extensions struct {
+				Build int `json:"build"`
+			} `json:"extensions"`
 		} `json:"windows"`
 	} `json:"php"`
+	// FrankenPHP is built per PHP version, like PHP: frankenphp-<php version>.
+	FrankenPHP struct {
+		Version string   `json:"version"`
+		Minors  []string `json:"minors"`
+		MacOS   struct {
+			Build int `json:"build"`
+		} `json:"macos"`
+		Windows struct {
+			Build int `json:"build"`
+		} `json:"windows"`
+	} `json:"frankenphp"`
 	// Packages are the services next to PHP: for each release line, the newest upstream
 	// version is built from source or mirrored, per platform.
 	Packages map[string]pkgConfig `json:"packages"`

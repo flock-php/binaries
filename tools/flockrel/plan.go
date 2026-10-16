@@ -18,7 +18,9 @@ type build struct {
 
 // runPlan prints, and writes to $GITHUB_OUTPUT, the builds whose release asset doesn't exist yet:
 //
-//	php_macos=[{"package":"php","version":"8.4.26","platform":"macos-arm64","build":1}, ...]
+//	php_macos=[{"package":"php","version":"8.4.26","platform":"macos-arm64","build":1}, ...]   (php and frankenphp)
+//	php_exts_windows=[{"package":"php-exts","version":"8.4","platform":"windows-x64","build":1}, ...]
+//	frankenphp_windows=[{"package":"frankenphp","version":"8.4.26","platform":"windows-x64","build":1}, ...]
 //	builds=[{"package":"postgres","version":"18.6","platform":"windows-x64","build":1}, ...]
 //	mirrors=[{"package":"mysql","version":"8.4.11","platform":"macos-arm64","build":1}, ...]
 //	any=true|false
@@ -30,7 +32,7 @@ func runPlan(args []string) error {
 	versionsPath := fs.String("versions", "versions.json", "versions file")
 	repo := fs.String("repo", os.Getenv("GITHUB_REPOSITORY"), "owner/name of the binaries repository")
 	only := fs.String("php", "", "comma-separated PHP versions to plan instead of the newest of each minor")
-	pkgs := fs.String("packages", "", "comma-separated packages to plan (default all; \"php\" is PHP)")
+	pkgs := fs.String("packages", "", "comma-separated packages to plan (default all; also \"php\", \"php-exts\" and \"frankenphp\")")
 	fs.Parse(args)
 
 	v, err := loadVersions(*versionsPath)
@@ -64,14 +66,44 @@ func runPlan(args []string) error {
 		return true
 	}
 
-	phpMacOS := []build{}
+	phpMacOS, phpExtsWindows, frankenWindows := []build{}, []build{}, []build{}
+	builds, mirrors := []build{}, []build{}
+
+	// PHP versions per minor: php.net for macOS (built from source), windows.php.net for Windows
+	// (mirrored, and the base of the extension packs and FrankenPHP), which can trail by a day.
+	macOSPHP := map[string]string{}
+	macOSVersion := func(minor string) (string, error) {
+		if v, ok := macOSPHP[minor]; ok {
+			return v, nil
+		}
+		latest, err := latestPHP(minor)
+		macOSPHP[minor] = latest
+		return latest, err
+	}
+	var windowsPHP map[string]string
+	if selected("php") || selected("php-exts") || selected("frankenphp") {
+		var minors []string
+		minors = append(minors, v.PHP.Windows.Minors...)
+		minors = append(minors, v.FrankenPHP.Minors...)
+		if windowsPHP, err = latestWindowsPHP(minors); err != nil {
+			fmt.Fprintf(os.Stderr, "::warning::php windows: %v\n", err)
+		}
+	}
+	windowsVersion := func(minor string) (string, bool) {
+		ver, ok := windowsPHP[minor]
+		if !ok && windowsPHP != nil {
+			fmt.Fprintf(os.Stderr, "::warning::php windows: no build of PHP %s on windows.php.net\n", minor)
+		}
+		return ver, ok
+	}
+
 	if selected("php") {
 		var phpVersions []string
 		if *only != "" {
 			phpVersions = strings.Split(*only, ",")
 		} else {
 			for _, minor := range v.PHP.MacOS.Minors {
-				latest, err := latestPHP(minor)
+				latest, err := macOSVersion(minor)
 				if err != nil {
 					return err
 				}
@@ -84,25 +116,40 @@ func runPlan(args []string) error {
 				phpMacOS = append(phpMacOS, b)
 			}
 		}
+		if *only == "" {
+			for _, minor := range v.PHP.Windows.Minors {
+				if ver, ok := windowsVersion(minor); ok {
+					if b := (build{Package: "php", Version: ver, Platform: "windows-x64", Build: v.PHP.Windows.Build}); needed(b) {
+						mirrors = append(mirrors, b)
+					}
+				}
+			}
+		}
 	}
 
-	builds, mirrors := []build{}, []build{}
-	// Windows PHP: the version windows.php.net has a build of, which can trail php.net by a day.
-	if selected("php") && *only == "" && len(v.PHP.Windows.Minors) > 0 {
-		vers, err := latestWindowsPHP(v.PHP.Windows.Minors)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "::warning::php windows: %v\n", err)
-		}
+	// Extension packs for Windows PHP: one per minor, independent of the patch release.
+	if selected("php-exts") {
 		for _, minor := range v.PHP.Windows.Minors {
-			ver, ok := vers[minor]
-			if !ok {
-				if err == nil {
-					fmt.Fprintf(os.Stderr, "::warning::php windows: no build of PHP %s on windows.php.net\n", minor)
-				}
-				continue
+			if b := (build{Package: "php-exts", Version: minor, Platform: "windows-x64", Build: v.PHP.Windows.Extensions.Build}); needed(b) {
+				phpExtsWindows = append(phpExtsWindows, b)
 			}
-			if b := (build{Package: "php", Version: ver, Platform: "windows-x64", Build: v.PHP.Windows.Build}); needed(b) {
-				mirrors = append(mirrors, b)
+		}
+	}
+
+	// FrankenPHP embeds PHP, so it is built per PHP version on both platforms.
+	if selected("frankenphp") && *only == "" {
+		for _, minor := range v.FrankenPHP.Minors {
+			latest, err := macOSVersion(minor)
+			if err != nil {
+				return err
+			}
+			if b := (build{Package: "frankenphp", Version: latest, Platform: "macos-arm64", Build: v.FrankenPHP.MacOS.Build}); needed(b) {
+				phpMacOS = append(phpMacOS, b)
+			}
+			if ver, ok := windowsVersion(minor); ok {
+				if b := (build{Package: "frankenphp", Version: ver, Platform: "windows-x64", Build: v.FrankenPHP.Windows.Build}); needed(b) {
+					frankenWindows = append(frankenWindows, b)
+				}
 			}
 		}
 	}
@@ -139,11 +186,11 @@ func runPlan(args []string) error {
 	for _, o := range []struct {
 		name string
 		list []build
-	}{{"php_macos", phpMacOS}, {"builds", builds}, {"mirrors", mirrors}} {
+	}{{"php_macos", phpMacOS}, {"php_exts_windows", phpExtsWindows}, {"frankenphp_windows", frankenWindows}, {"builds", builds}, {"mirrors", mirrors}} {
 		j, _ := json.Marshal(o.list)
 		fmt.Fprintf(&out, "%s=%s\n", o.name, j)
 	}
-	fmt.Fprintf(&out, "any=%t\n", len(phpMacOS)+len(builds)+len(mirrors) > 0)
+	fmt.Fprintf(&out, "any=%t\n", len(phpMacOS)+len(phpExtsWindows)+len(frankenWindows)+len(builds)+len(mirrors) > 0)
 	fmt.Print(out.String())
 	if path := os.Getenv("GITHUB_OUTPUT"); path != "" {
 		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
