@@ -20,6 +20,8 @@ $results = [System.Collections.Generic.List[string]]::new()
 $failed = $false
 
 function Check([string] $name, [scriptblock] $test) {
+    # Printed as it starts, so a check that hangs shows up in the log.
+    Write-Output "$(Get-Date -Format HH:mm:ss) $name"
     try { $r = & $test; $results.Add("| $name | ✓ $r |") }
     catch { $results.Add("| $name | ✗ $($_.Exception.Message) |"); $script:failed = $true }
 }
@@ -79,8 +81,15 @@ switch ($Package) {
         Check 'initdb' { Invoke-Native "$bin/initdb.exe" @('-D', $data, '-U', 'postgres', '--auth=trust', '-E', 'UTF8', '--locale=C') | Out-Null }
         # Through pg_ctl: the runner is an administrator, and postgres.exe refuses to run as one;
         # pg_ctl starts it with administrator rights dropped.
+        # Not through Invoke-Native: the server pg_ctl starts inherits its output handles, so
+        # capturing them waits as long as the server runs. Wait for pg_ctl itself only.
         Check 'start (pg_ctl)' {
-            Invoke-Native "$bin/pg_ctl.exe" @('start', '-w', '-D', $data, '-l', "$tmp/server.log", '-o', '-p 54329 -c listen_addresses=127.0.0.1') | Out-Null
+            $ctl = Start-Process -FilePath "$bin/pg_ctl.exe" -PassThru -NoNewWindow `
+                -ArgumentList 'start', '-w', '-t', '60', '-D', $data, '-l', "$tmp/server.log", '-o', '"-p 54329 -c listen_addresses=127.0.0.1"' `
+                -RedirectStandardOutput "$tmp/pg_ctl.out" -RedirectStandardError "$tmp/pg_ctl.err"
+            if (-not $ctl.WaitForExit(90000)) { throw 'pg_ctl start did not return' }
+            if ($ctl.ExitCode) { throw "pg_ctl start: exit $($ctl.ExitCode): $((Get-Content "$tmp/pg_ctl.err", "$tmp/server.log" -ErrorAction SilentlyContinue) -join ' / ')" }
+            Wait-Port 54329 $ctl "$tmp/server.log"
         }
         $psql = @('-h', '127.0.0.1', '-p', '54329', '-U', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At')
         Check 'query' { Invoke-Native "$bin/psql.exe" ($psql + @('-c', 'select version()')) }
