@@ -29,13 +29,15 @@ $deps = Join-Path $vcpkgRoot 'x64-windows'
 Write-Output '::endgroup::'
 
 # winflexbison installs win_bison/win_flex; the MSVC scripts (14, 15) call bison and flex.
+# Copy the real executables (with bison's data/ next to them) from Chocolatey's package folder:
+# what Chocolatey puts on PATH are launcher stubs that only work from where they are.
+$winflexbison = Join-Path $env:ChocolateyInstall 'lib/winflexbison3/tools'
 $tools = Join-Path $work 'tools'
 New-Item -ItemType Directory -Force $tools | Out-Null
 foreach ($t in 'bison', 'flex') {
-    $exe = (Get-Command "win_$t.exe").Source
-    Copy-Item $exe (Join-Path $tools "$t.exe") -Force
-    Copy-Item (Join-Path (Split-Path $exe) 'data') (Join-Path $tools 'data') -Recurse -Force -ErrorAction SilentlyContinue
+    Copy-Item (Join-Path $winflexbison "win_$t.exe") (Join-Path $tools "$t.exe") -Force
 }
+Copy-Item (Join-Path $winflexbison 'data') (Join-Path $tools 'data') -Recurse -Force
 $env:PATH = "$tools;$env:PATH"
 
 if (Test-Path $Out) { Remove-Item -Recurse -Force $Out }
@@ -56,8 +58,14 @@ if ($major -ge 16) {
 } else {
     Write-Output "::group::MSVC build scripts $(Get-Date -Format HH:mm:ss)"
     # The scripts look for zlib as lib\zdll.lib and run bin\openssl.exe to learn its version.
-    Copy-Item (Join-Path $deps 'lib/zlib.lib') (Join-Path $deps 'lib/zdll.lib') -Force
-    Copy-Item (Join-Path $deps 'tools/openssl/openssl.exe') (Join-Path $deps 'bin/openssl.exe') -Force
+    # vcpkg's file names change between port versions (zlib.lib, z.lib), so take what's there.
+    Get-ChildItem (Join-Path $deps 'lib') -Filter *.lib | ForEach-Object Name
+    $zlib = @('zlib.lib', 'z.lib', 'zlib1.lib') | ForEach-Object { Join-Path $deps "lib/$_" } | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $zlib) { throw "no zlib import library in $deps/lib" }
+    Copy-Item $zlib (Join-Path $deps 'lib/zdll.lib') -Force
+    $openssl = Get-ChildItem $deps -Recurse -Filter openssl.exe | Select-Object -First 1
+    if (-not $openssl) { throw "no openssl.exe in $deps" }
+    Copy-Item $openssl.FullName (Join-Path $deps 'bin/openssl.exe') -Force
     $depsPerl = $deps -replace '\\', '/'
     Set-Content (Join-Path $src 'src/tools/msvc/config.pl') -Encoding ascii -Value @"
 use strict;
