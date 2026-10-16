@@ -4,6 +4,7 @@
 //	flockrel manifest -versions versions.json -channels channels.json -out dir [-status file] [-dry-run]
 //	                                                             the three channel manifests (+ .sig) from the releases
 //	flockrel decide   -action promote-beta -target postgres-19.0  record a channel decision in channels.json
+//	flockrel check    -versions versions.json -out findings.json   new lines, end of life, newer pinned versions
 //	flockrel verify   -pub manifest.pub [-channel stable] manifest.json manifest.json.sig
 //	flockrel keygen   -pub manifest.pub                          new signing key: public to file, private to stdout
 //
@@ -30,6 +31,8 @@ func main() {
 		err = runManifest(args)
 	case "decide":
 		err = runDecide(args)
+	case "check":
+		err = runCheck(args)
 	case "verify":
 		err = runVerify(args)
 	case "keygen":
@@ -44,6 +47,6 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: flockrel plan|manifest|decide|verify|keygen [flags]")
+	fmt.Fprintln(os.Stderr, "usage: flockrel plan|manifest|decide|check|verify|keygen [flags]")
 	os.Exit(2)
 }

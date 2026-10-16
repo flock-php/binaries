@@ -1,0 +1,37 @@
+# Weekly: looks upstream for what versions.json doesn't cover (flockrel check) and reports it as
+# issues (label: upstream, scripts/upstream-issues.sh). It only reports; nothing gets built.
+#   New release line: <name> <line>   a line newer than the newest we build (one issue each)
+#   End of life: <name> <line>        a line we build that no longer gets updates (one issue each)
+#   Updates available for pinned versions   pins with a newer stable release (one issue, updated)
+# Close a new-line or end-of-life issue to decide against it: it isn't reported again.
+name: Check upstream
+
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/flockrel/go.mod
+          cache: false
+      - name: Check
+        run: |
+          go -C tools/flockrel run . check -versions ../../versions.json -php-build ../../packages/php/macos/build.sh \
+            -out "$RUNNER_TEMP/findings.json" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Issues
+        run: bash scripts/upstream-issues.sh "$RUNNER_TEMP/findings.json" | tee -a "$GITHUB_STEP_SUMMARY"

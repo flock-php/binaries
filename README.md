@@ -95,6 +95,7 @@ the same version.
 | `release.yml` | daily: plan, build/mirror everything missing, then `manifest.yml` |
 | `manifest.yml` | the three channel manifests and the Ready for testing issue: after every Release and decision, every 6 hours, by hand |
 | `promote.yml` | records a channel decision (promote, hold, yank) in `channels.json` |
+| `check.yml` | weekly: new release lines, end of life, newer pinned versions as issues |
 | `build-php-macos.yml` | `php` and `frankenphp` for macOS (static-php-cli) |
 | `build-php-exts-windows.yml` | `php-exts` for one PHP minor |
 | `build-frankenphp-windows.yml` | `frankenphp` for Windows |
@@ -108,6 +109,23 @@ vendor's own license files). For GPL, SSPL and AGPL software (MySQL, MariaDB, Mo
 Redis) the matching upstream source is published on the same release as
 `<package>-<version>-source.tar.gz`; Valkey for Windows has the source package of the MSYS2
 runtime it ships (LGPL) next to it.
+
+## Upstream check
+
+The daily run only follows the release lines in `versions.json`. Every Monday `check.yml`
+(`flockrel check`) looks for what they don't cover and opens issues (label `upstream`); it only
+reports, nothing gets built:
+
+| Issue | When |
+|---|---|
+| New release line: PHP 8.6 | a line newer than the newest we build. MySQL and MariaDB: LTS lines only; Node.js: even majors only; never pre-releases. |
+| End of life: Node.js 18 | a line we build no longer gets updates upstream ([endoflife.date](https://endoflife.date)) |
+| Updates available for pinned versions | something pinned (FrankenPHP, static-php-cli, OpenSSL, the Windows extensions, xdebug on macOS) has a newer stable release; one issue, updated weekly |
+
+Close a new-line or end-of-life issue to decide against it (skip the line, keep building it): it
+isn't reported again. Issues close by themselves once versions.json covers them (the line was added
+or removed, the pins are current). The pinned-versions issue comes back when there's an update it
+didn't list.
 
 ## Channels
 
@@ -217,6 +235,7 @@ scripts/macos/                   static OpenSSL build, relocation of macOS insta
 scripts/windows/                 php-windows-builder setup, extension packs, Windows smoke tests
 scripts/publish.sh               upload a package (and its sources) to its release
 scripts/ready-issue.sh           keep the Ready for testing issue up to date
+scripts/upstream-issues.sh       turn the weekly check's findings into issues
 scripts/verify-macos.sh          fails when a Mach-O file links outside macOS or targets macOS > 13
 scripts/smoke-*.sh               smoke tests run against every package before it is published
 ```

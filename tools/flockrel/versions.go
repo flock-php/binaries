@@ -27,7 +27,13 @@ type versions struct {
 			Minors []string `json:"minors"`
 			// Extensions are one pack per minor (php-exts-<minor>), rebuilt by raising build.
 			Extensions struct {
-				Build int `json:"build"`
+				Build      int `json:"build"`
+				FromSource map[string]struct {
+					Repo string            `json:"repo"`
+					Ref  string            `json:"ref"`
+					Refs map[string]string `json:"refs"`
+				} `json:"from_source"`
+				MongoDB string `json:"mongodb"`
 			} `json:"extensions"`
 		} `json:"windows"`
 	} `json:"php"`
