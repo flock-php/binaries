@@ -25,7 +25,9 @@ if (-not (Test-Path (Join-Path $src 'COPYRIGHT'))) { throw "$src is not a Postgr
 
 Write-Output "::group::OpenSSL and zlib (vcpkg) $(Get-Date -Format HH:mm:ss)"
 $vcpkgRoot = Join-Path $work 'vcpkg'
-& "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install openssl zlib --triplet x64-windows "--x-install-root=$vcpkgRoot"
+# The MSVC build scripts (14–16) run openssl.exe for its version, which needs the tools feature.
+$opensslPort = if ($major -ge 17) { 'openssl' } else { 'openssl[tools]' }
+& "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install $opensslPort zlib --triplet x64-windows "--x-install-root=$vcpkgRoot"
 $deps = Join-Path $vcpkgRoot 'x64-windows'
 Write-Output '::endgroup::'
 

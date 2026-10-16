@@ -74,9 +74,14 @@ if ($env:SIGNER_WINDOWS) {
 switch ($Package) {
     'postgres' {
         $bin = Join-Path $D 'bin'
+        # initdb creates the data directory itself: on one that exists it fails to set permissions.
+        Remove-Item -Recurse -Force $data
         Check 'initdb' { Invoke-Native "$bin/initdb.exe" @('-D', $data, '-U', 'postgres', '--auth=trust', '-E', 'UTF8', '--locale=C') | Out-Null }
-        $p = Start-Server "$bin/postgres.exe" @('-D', $data, '-p', '54329', '-c', 'listen_addresses=127.0.0.1')
-        Check 'start' { Wait-Port 54329 $p "$tmp/err.log" }
+        # Through pg_ctl: the runner is an administrator, and postgres.exe refuses to run as one;
+        # pg_ctl starts it with administrator rights dropped.
+        Check 'start (pg_ctl)' {
+            Invoke-Native "$bin/pg_ctl.exe" @('start', '-w', '-D', $data, '-l', "$tmp/server.log", '-o', '-p 54329 -c listen_addresses=127.0.0.1') | Out-Null
+        }
         $psql = @('-h', '127.0.0.1', '-p', '54329', '-U', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At')
         Check 'query' { Invoke-Native "$bin/psql.exe" ($psql + @('-c', 'select version()')) }
         Check 'contrib extensions (pgcrypto, pg_trgm, hstore, citext)' {
