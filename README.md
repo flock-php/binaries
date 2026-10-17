@@ -13,9 +13,9 @@ vendor's own binaries, checked against the vendor's checksum or signature.
 
 | Package | macOS arm64 | Windows x64 | Versions (`versions.json`) |
 |---|---|---|---|
-| `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | macOS 8.1–8.6, Windows 7.4–8.6 |
+| `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | macOS 8.1–8.5, Windows 7.4–8.5 |
 | `php-exts` | – | built: extension DLLs for the Windows build (below) | one pack per Windows minor |
-| `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | PHP 8.2–8.6 |
+| `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | PHP 8.2–8.5 |
 | `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | 14–18 |
 | `mariadb` | built | mirrored | 10.11, 11.4, 11.8, 12.3 |
 | `mysql` | mirrored | mirrored | 8.0, 8.4, 9.7 |
@@ -43,6 +43,9 @@ are built on the RC too, but upstream may not support the new minor yet: those b
 optional in the plan, a failure is only a warning, and the next daily run tries again. Flock offers
 PHP on Windows only together with its extension pack. The pack is kept for the release (the
 extension API doesn't change after the first RC); raise `php.windows.extensions.build` to rebuild it.
+PHP itself on macOS is not optional: add the minor once static-php-cli and the compiled-in
+extensions (apcu, igbinary, redis) support it (PHP 8.6: not yet, static-php-cli 2.8.5 can't patch
+its source).
 
 ### Windows extension packs
 
