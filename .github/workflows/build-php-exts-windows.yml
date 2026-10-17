@@ -22,6 +22,10 @@ on:
       publish:
         type: boolean
         default: false
+      # A minor with only a release candidate: a failure is a warning (release.yml tries again the next day).
+      optional:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       minor:
@@ -63,6 +67,7 @@ jobs:
     needs: config
     runs-on: windows-2022
     timeout-minutes: 60
+    continue-on-error: ${{ inputs.optional == true }}
     strategy:
       fail-fast: false
       matrix:
@@ -92,6 +97,9 @@ jobs:
           name: ext-${{ matrix.name }}-${{ inputs.minor }}
           path: artifacts/*
           retention-days: 7
+      - if: failure() && inputs.optional
+        shell: bash
+        run: echo "::warning::${{ matrix.name }} doesn't build for PHP $MINOR yet (a release candidate); the next release run tries again"
 
   # A fresh runner: assembles the pack and loads every DLL into the official PHP build.
   package:
@@ -99,6 +107,9 @@ jobs:
     needs: [config, build]
     runs-on: windows-2022
     timeout-minutes: 30
+    continue-on-error: ${{ inputs.optional == true }}
+    outputs:
+      ok: ${{ steps.done.outputs.ok }}
     env:
       ASSET: ${{ needs.config.outputs.asset }}
       EXTENSIONS: ${{ needs.config.outputs.matrix }}
@@ -123,10 +134,16 @@ jobs:
           name: ${{ env.ASSET }}
           path: ${{ env.ASSET }}
           retention-days: 7
+      - id: done
+        shell: bash
+        run: echo ok=true >> "$GITHUB_OUTPUT"
+      - if: failure() && inputs.optional
+        shell: bash
+        run: echo "::warning::The extension pack for PHP $MINOR (a release candidate) isn't complete yet; the next release run tries again"
 
   publish:
     needs: [config, package]
-    if: inputs.publish
+    if: inputs.publish && needs.package.outputs.ok == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write

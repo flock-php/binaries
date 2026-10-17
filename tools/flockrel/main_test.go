@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"crypto/ed25519"
 	"encoding/base64"
 	"os"
@@ -93,5 +94,18 @@ func TestNewestPerLine(t *testing.T) {
 	}
 	if cmpVersion("30.2", "30.10") >= 0 || cmpVersion("18.6", "18.6") != 0 || cmpVersion("8.0.46", "8.0.9") <= 0 {
 		t.Error("cmpVersion")
+	}
+	ordered := []string{"8.5.12", "8.6.0alpha1", "8.6.0beta3", "8.6.0RC2", "8.6.0RC10", "8.6.0", "8.6.1"}
+	for i := range ordered {
+		for j := range ordered {
+			if got, want := cmpVersion(ordered[i], ordered[j]), cmp.Compare(i, j); got != want {
+				t.Errorf("cmpVersion(%s, %s) = %d, want %d", ordered[i], ordered[j], got, want)
+			}
+		}
+	}
+	for v, want := range map[string]bool{"8.6.0RC3": true, "10.0.0RC1": true, "8.4.27RC1": false, "8.6.0beta1": false, "8.6.0": false} {
+		if newMinorRC.MatchString(v) != want {
+			t.Errorf("newMinorRC(%s) != %t", v, want)
+		}
 	}
 }

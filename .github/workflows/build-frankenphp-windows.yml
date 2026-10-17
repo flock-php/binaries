@@ -15,6 +15,10 @@ on:
       publish:
         type: boolean
         default: false
+      # Built on a PHP release candidate: a failure is a warning (release.yml tries again the next day).
+      optional:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       version:
@@ -36,8 +40,10 @@ jobs:
     name: build frankenphp ${{ inputs.version }}
     runs-on: windows-2022
     timeout-minutes: 90
+    continue-on-error: ${{ inputs.optional == true }}
     outputs:
       asset: ${{ steps.config.outputs.asset }}
+      ok: ${{ steps.done.outputs.ok }}
     steps:
       - uses: actions/checkout@v7
       - id: config
@@ -71,12 +77,22 @@ jobs:
           name: ${{ steps.config.outputs.asset }}
           path: ${{ steps.config.outputs.asset }}
           retention-days: 7
+      - id: done
+        shell: bash
+        run: echo ok=true >> "$GITHUB_OUTPUT"
+      - if: failure() && inputs.optional
+        shell: bash
+        run: echo "::warning::FrankenPHP for PHP $VERSION (a release candidate) didn't build; the next release run tries again"
 
   test:
     name: run frankenphp ${{ inputs.version }}
     needs: build
+    if: needs.build.outputs.ok == 'true'
     runs-on: windows-2022
     timeout-minutes: 20
+    continue-on-error: ${{ inputs.optional == true }}
+    outputs:
+      ok: ${{ steps.done.outputs.ok }}
     env:
       ASSET: ${{ needs.build.outputs.asset }}
     steps:
@@ -90,10 +106,16 @@ jobs:
           New-Item -ItemType Directory pkg | Out-Null
           & "$env:SystemRoot/System32/tar.exe" -xf $env:ASSET -C pkg
           ./scripts/windows/smoke-frankenphp.ps1 -Dir pkg -Php (($env:VERSION -split '\.')[0..1] -join '.')
+      - id: done
+        shell: bash
+        run: echo ok=true >> "$GITHUB_OUTPUT"
+      - if: failure() && inputs.optional
+        shell: bash
+        run: echo "::warning::FrankenPHP for PHP $VERSION (a release candidate) failed its test; the next release run tries again"
 
   publish:
     needs: [build, test]
-    if: inputs.publish
+    if: inputs.publish && needs.test.outputs.ok == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write

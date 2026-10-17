@@ -1,7 +1,7 @@
 {
   "php": {
     "macos": {
-      "minors": ["8.1", "8.2", "8.3", "8.4", "8.5"],
+      "minors": ["8.1", "8.2", "8.3", "8.4", "8.5", "8.6"],
       "build": 1,
       "spc": "2.8.5",
       "min_os": "13.0",
@@ -9,7 +9,7 @@
       "shared_extensions": "xdebug,imagick,pcov,mongodb,memcached"
     },
     "windows": {
-      "minors": ["7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"],
+      "minors": ["7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5", "8.6"],
       "build": 1,
       "extensions": {
         "build": 1,
@@ -27,7 +27,7 @@
   },
   "frankenphp": {
     "version": "1.13.0",
-    "minors": ["8.2", "8.3", "8.4", "8.5"],
+    "minors": ["8.2", "8.3", "8.4", "8.5", "8.6"],
     "macos": { "build": 1 },
     "windows": { "build": 1 }
   },

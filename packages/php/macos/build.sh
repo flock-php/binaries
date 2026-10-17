@@ -61,8 +61,24 @@ echo "::endgroup::"
 all="$STATIC_EXTS${SHARED_EXTS:+,$SHARED_EXTS}"
 
 echo "::group::Download sources for PHP $PHP_VERSION"
+# A release candidate (8.6.0RC3) isn't on php.net/distributions: php.net's list of release
+# candidates has its tarball (on the release manager's downloads.php.net page) and SHA-256.
+rc_sum=""
+if [[ "$PHP_VERSION" =~ RC[0-9]+$ ]]; then
+  read -r rc_url rc_sum < <(curl -fsSL --retry 3 'https://www.php.net/release-candidates.php?format=json' \
+    | jq -r --arg v "$PHP_VERSION" '.[] | .release | select(.version == $v) | "\(.files.xz.path) \(.files.xz.sha256)"')
+  [[ -n "${rc_url:-}" ]] || { echo "::error::php.net doesn't list PHP $PHP_VERSION as a release candidate"; exit 1; }
+  DOWNLOAD_ARGS="$DOWNLOAD_ARGS --custom-url=php-src:$rc_url"
+fi
 # shellcheck disable=SC2086
 ./spc download --with-php="$PHP_VERSION" --for-extensions="$all" --prefer-pre-built --retry=3 ${DOWNLOAD_ARGS:-}
+if [[ -n "$rc_sum" ]]; then
+  rc_file="downloads/$(basename "$rc_url")"
+  [[ -f "$rc_file" ]] || { echo "::error::static-php-cli didn't save $rc_file"; ls downloads; exit 1; }
+  got="$(shasum -a 256 "$rc_file" | cut -d' ' -f1)"
+  [[ "$got" == "$rc_sum" ]] || { echo "::error::$rc_file: SHA-256 $got, expected $rc_sum"; exit 1; }
+  echo "✓ $(basename "$rc_file") SHA-256 $got"
+fi
 if [[ "$TARGET" == frankenphp ]]; then
   # FRANKENPHP_VERSION pins the release; without it static-php-cli takes the newest.
   ./spc download frankenphp --retry=3 \

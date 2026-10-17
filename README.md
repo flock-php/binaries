@@ -13,9 +13,9 @@ vendor's own binaries, checked against the vendor's checksum or signature.
 
 | Package | macOS arm64 | Windows x64 | Versions (`versions.json`) |
 |---|---|---|---|
-| `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | macOS 8.1–8.5, Windows 7.4–8.5 |
+| `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | macOS 8.1–8.6, Windows 7.4–8.6 |
 | `php-exts` | – | built: extension DLLs for the Windows build (below) | one pack per Windows minor |
-| `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | PHP 8.2–8.5 |
+| `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | PHP 8.2–8.6 |
 | `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | 14–18 |
 | `mariadb` | built | mirrored | 10.11, 11.4, 11.8, 12.3 |
 | `mysql` | mirrored | mirrored | 8.0, 8.4, 9.7 |
@@ -31,6 +31,18 @@ The versions column lists release lines: every day the newest upstream release o
 looked up (`tools/flockrel/upstream.go`, php.net and windows.php.net for PHP) and built or mirrored
 when it isn't published yet. Patch releases come in on their own; a new line (PostgreSQL 19, Node.js
 28, PHP 8.6) is one entry in `versions.json`.
+
+### PHP release candidates
+
+A PHP minor in `versions.json` that has no release yet gets its release candidates instead
+(8.6.0RC3: php.net's list of release candidates for macOS, windows.php.net's `qa/` for Windows),
+until the release itself is out. Only the RCs of a new minor are built, not the RCs of patch
+releases (8.4.27RC1). They are pre-releases, so they go to the beta channel and never to stable;
+the release starts in experimental like any new line. FrankenPHP and the Windows extension pack
+are built on the RC too, but upstream may not support the new minor yet: those builds are marked
+optional in the plan, a failure is only a warning, and the next daily run tries again. Flock offers
+PHP on Windows only together with its extension pack. The pack is kept for the release (the
+extension API doesn't change after the first RC); raise `php.windows.extensions.build` to rebuild it.
 
 ### Windows extension packs
 
@@ -118,7 +130,7 @@ reports, nothing gets built:
 
 | Issue | When |
 |---|---|
-| New release line: PHP 8.6 | a line newer than the newest we build. MySQL and MariaDB: LTS lines only; Node.js: even majors only; never pre-releases. |
+| New release line: PHP 8.6 | a line newer than the newest we build. MySQL and MariaDB: LTS lines only; Node.js: even majors only. A new PHP minor is reported from its first release candidate on; otherwise never pre-releases. |
 | End of life: Node.js 18 | a line we build no longer gets updates upstream ([endoflife.date](https://endoflife.date)) |
 | Updates available for pinned versions | something pinned (FrankenPHP, static-php-cli, OpenSSL, the Windows extensions, xdebug on macOS) has a newer stable release; one issue, updated weekly |
 

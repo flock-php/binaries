@@ -21,6 +21,10 @@ on:
       publish:
         type: boolean
         default: false
+      # FrankenPHP on a PHP release candidate: a failure is a warning (release.yml tries again the next day).
+      optional:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       version:
@@ -47,8 +51,10 @@ jobs:
     name: build ${{ inputs.package }} ${{ inputs.version }}
     runs-on: macos-15
     timeout-minutes: 120
+    continue-on-error: ${{ inputs.optional == true }}
     outputs:
       asset: ${{ steps.config.outputs.asset }}
+      ok: ${{ steps.done.outputs.ok }}
     env:
       GITHUB_TOKEN: ${{ github.token }}
     steps:
@@ -107,12 +113,20 @@ jobs:
           name: ${{ env.ASSET }}
           path: ${{ env.ASSET }}
           retention-days: 7
+      - id: done
+        run: echo ok=true >> "$GITHUB_OUTPUT"
+      - if: failure() && inputs.optional
+        run: echo "::warning::$PKG for PHP $VERSION (a release candidate) didn't build; the next release run tries again"
 
   # The oldest Apple Silicon runner with Homebrew moved away: closest to a user's Mac.
   portable:
     name: run ${{ inputs.package }} ${{ inputs.version }} without Homebrew
     needs: build
+    if: needs.build.outputs.ok == 'true'
     runs-on: macos-14
+    continue-on-error: ${{ inputs.optional == true }}
+    outputs:
+      ok: ${{ steps.done.outputs.ok }}
     env:
       ASSET: ${{ needs.build.outputs.asset }}
     steps:
@@ -129,10 +143,14 @@ jobs:
         run: |
           mkdir pkg && tar -C pkg -xzf "$ASSET"
           bash scripts/smoke-php-package.sh "$PKG" pkg
+      - id: done
+        run: echo ok=true >> "$GITHUB_OUTPUT"
+      - if: failure() && inputs.optional
+        run: echo "::warning::$PKG for PHP $VERSION (a release candidate) failed without Homebrew; the next release run tries again"
 
   publish:
     needs: [build, portable]
-    if: inputs.publish
+    if: inputs.publish && needs.portable.outputs.ok == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
