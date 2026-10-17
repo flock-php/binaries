@@ -269,7 +269,7 @@ func latestPHP(minor string) (string, error) {
 // ("8.6.0": "8.6.0RC3"); entries without a published RC are left out.
 func phpRCs() (map[string]string, error) {
 	var r map[string]json.RawMessage // also has other keys ("reported": [...])
-	if err := getJSON("https://www.php.net/release-candidates.php?format=json", &r); err != nil {
+	if err := getJSON("https://www.php.net/pre-release-builds.php?format=json", &r); err != nil {
 		return nil, err
 	}
 	out := map[string]string{}

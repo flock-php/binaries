@@ -65,8 +65,8 @@ echo "::group::Download sources for PHP $PHP_VERSION"
 # candidates has its tarball (on the release manager's downloads.php.net page) and SHA-256.
 rc_sum=""
 if [[ "$PHP_VERSION" =~ RC[0-9]+$ ]]; then
-  read -r rc_url rc_sum < <(curl -fsSL --retry 3 'https://www.php.net/release-candidates.php?format=json' \
-    | jq -r --arg v "$PHP_VERSION" '.[] | .release | select(.version == $v) | "\(.files.xz.path) \(.files.xz.sha256)"')
+  read -r rc_url rc_sum < <(curl -fsSL --retry 3 'https://www.php.net/pre-release-builds.php?format=json' \
+    | jq -r --arg v "$PHP_VERSION" '.[] | objects | .release | objects | select(.version == $v) | "\(.files.xz.path) \(.files.xz.sha256)"')
   [[ -n "${rc_url:-}" ]] || { echo "::error::php.net doesn't list PHP $PHP_VERSION as a release candidate"; exit 1; }
   DOWNLOAD_ARGS="$DOWNLOAD_ARGS --custom-url=php-src:$rc_url"
 fi
