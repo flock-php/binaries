@@ -20,7 +20,7 @@
           "pcov": { "repo": "krakjoe/pcov", "ref": "v1.0.12" },
           "redis": { "repo": "phpredis/phpredis", "ref": "6.3.0" },
           "xdebug": { "repo": "xdebug/xdebug", "ref": "3.5.3", "refs": { "7.4": "3.1.6", "8.6": "3.6.0alpha1" }, "args": "--with-xdebug=shared" },
-          "opentelemetry": { "repo": "open-telemetry/opentelemetry-php-instrumentation", "url": "https://pecl.php.net/package/opentelemetry", "ref": "1.4.2", "min_php": "8.0" }
+          "opentelemetry": { "repo": "open-telemetry/opentelemetry-php-instrumentation", "url": "https://pecl.php.net/package/opentelemetry", "ref": "1.4.2", "min_php": "8.0", "args": "--enable-opentelemetry" }
         },
         "mongodb": "2.5.5"
       }
