@@ -67,8 +67,9 @@ The macOS `php` and `frankenphp` packages and the Windows packs from PHP 8.0 on 
 (Apache-2.0) as a shared extension: `ext/opentelemetry.so` on macOS (thread-safe in `frankenphp`),
 `ext/php_opentelemetry.dll` in the packs. Flock doesn't load it by default: its runtime
 capture (queries, logs, views, jobs and dumps) loads it with its own ini file and uses only its
-`hook()` function. The release is pinned in `packages/php/macos/build.sh` (macOS, from PECL) and
-`php.windows.extensions.from_source` (Windows); the smoke tests check that hooks fire
+`hook()` function. The release is pinned in `packages/php/macos/build.sh` (macOS) and
+`php.windows.extensions.from_source` (Windows), both built from the PECL release: the GitHub
+repository keeps the extension in `ext/`, where php-windows-builder doesn't look. The smoke tests check that hooks fire
 (`scripts/smoke-opentelemetry.php`), not just that the extension loads.
 
 ### Package layouts
