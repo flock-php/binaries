@@ -74,3 +74,13 @@ mysql_fetch() {
   echo "::error::$2 not found on the MySQL CDN or archives" >&2
   return 1
 }
+
+# node_release_info <version> <out-file>: what nodejs.org's release index says about a release,
+# as {"lts": "<codename>"} or {"lts": false}. Published next to the archive, read by the manifest.
+node_release_info() {
+  local lts
+  lts="$(fetch_text https://nodejs.org/dist/index.json | jq -c --arg v "v$1" 'map(select(.version == $v))[0].lts')"
+  [[ "$lts" == false || "$lts" == \"*\" ]] || { echo "::error::Node.js $1 isn't in nodejs.org's release index" >&2; return 1; }
+  jq -n --argjson lts "$lts" '{lts: $lts}' >"$2"
+  echo "✓ $(basename "$2"): LTS $lts"
+}

@@ -68,6 +68,7 @@ type published struct {
 	Package, Version, Platform string
 	Build                      int
 	Line                       string
+	LTS                        bool // from the release's <package>-<version>.json
 	Asset                      asset
 }
 

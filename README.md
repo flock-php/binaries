@@ -211,6 +211,7 @@ effect on time and signatures never expire) and by hand:
         "<platform>": {
           "build": 2, "url": "https://…", "sha256": "…", "size": 92651566, "published": "…",
           "prerelease": true,
+          "lts": true,
           "yanked": { "1": "Crashes on macOS 13; use build 2" }
         }
       }
@@ -219,8 +220,9 @@ effect on time and signatures never expire) and by hand:
 }
 ```
 
-`prerelease` and `yanked` (yanked builds of that version, build number → reason) only appear when
-they apply. Flock downloads `releases/download/manifest/<manifest>` and `<manifest>.sig` for its
+`prerelease`, `lts` and `yanked` (yanked builds of that version, build number → reason) only appear
+when they apply. `lts` marks a Node.js release nodejs.org lists as LTS: the mirror records it in
+`node-<version>.json` on the release, and Flock installs the newest LTS line first. Flock downloads `releases/download/manifest/<manifest>` and `<manifest>.sig` for its
 channel and checks them against the public key in [`manifest.pub`](manifest.pub), which it ships
 with. It rejects a manifest that doesn't verify, isn't for the channel it asked for (`channel`), has
 expired (30 days), or has a lower `serial` than the last one it accepted for that channel. A version

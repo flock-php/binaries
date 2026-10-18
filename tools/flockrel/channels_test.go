@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -132,6 +133,32 @@ func TestChannelManifest(t *testing.T) {
 	}
 	if m := channelManifest(all, beta, now, v); m.Channel != "beta" {
 		t.Errorf("channel %q", m.Channel)
+	}
+	// LTS comes from the build's release.
+	lts := p(1, stable, "")
+	lts.LTS = true
+	if e, _ := get([]placed{lts}, stable); !e.LTS {
+		t.Error("LTS release: entry not marked LTS")
+	}
+	if e, _ := get([]placed{p(1, stable, "")}, stable); e.LTS {
+		t.Error("release without LTS: entry marked LTS")
+	}
+}
+
+func TestReleaseInfo(t *testing.T) {
+	for data, want := range map[string]bool{
+		`{"lts":"Krypton"}`: true,
+		`{"lts":false}`:     false,
+		`{"lts":""}`:        false,
+		`{}`:                false,
+	} {
+		var info releaseInfo
+		if err := json.Unmarshal([]byte(data), &info); err != nil {
+			t.Fatal(err)
+		}
+		if got := info.isLTS(); got != want {
+			t.Errorf("%s: LTS %v, want %v", data, got, want)
+		}
 	}
 }
 
