@@ -56,12 +56,13 @@ func TestCheck(t *testing.T) {
 			"crazywhalecc/static-php-cli": {"2.8.5"},
 			"openssl/openssl":             {"4.0.3", "3.5.10", "3.5.9"},
 			"xdebug/xdebug":               {"3.6.0", "3.5.3"},
-			"igbinary/igbinary":           {"3.2.17", "3.2.16"},
-			"krakjoe/apcu":                {"5.1.28"},
-			"mongodb/mongo-php-driver":    {"2.5.5", "1.21.12"},
+			"open-telemetry/opentelemetry-php-instrumentation": {"1.5.0", "1.4.2"},
+			"igbinary/igbinary":        {"3.2.17", "3.2.16"},
+			"krakjoe/apcu":             {"5.1.28"},
+			"mongodb/mongo-php-driver": {"2.5.5", "1.21.12"},
 		},
 	}
-	findings, problems := check(&v, `--custom-url=xdebug:https://xdebug.org/files/xdebug-3.5.3.tgz`, src, now)
+	findings, problems := check(&v, "--custom-url=xdebug:https://xdebug.org/files/xdebug-3.5.3.tgz\n--custom-url=opentelemetry:https://pecl.php.net/get/opentelemetry-1.4.2.tgz", src, now)
 	if len(problems) > 0 {
 		t.Errorf("problems: %v", problems)
 	}
@@ -101,6 +102,7 @@ func TestCheck(t *testing.T) {
 		"| FrankenPHP | 1.13.0 | 1.14.0 |",
 		"| OpenSSL | 3.5.9 | 3.5.10 |", // the same line, not 4.0
 		"| xdebug (macOS) | 3.5.3 | 3.6.0 |",
+		"| opentelemetry (macOS) | 1.4.2 | 1.5.0 |",
 		"| igbinary for PHP 8.5 (Windows) | 3.2.17RC1 | 3.2.17 |",
 		"| igbinary (Windows) | 3.2.16 | 3.2.17 |",
 	} {

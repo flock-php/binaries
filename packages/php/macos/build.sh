@@ -45,6 +45,9 @@ fi
 # Stable Xdebug: static-php-cli takes the newest tag, which can be an alpha (3.6.0alpha1
 # no longer builds for 8.1). 3.5.3 supports PHP 8.0–8.5.
 DOWNLOAD_ARGS="${DOWNLOAD_ARGS:-} --custom-url=xdebug:https://xdebug.org/files/xdebug-3.5.3.tgz"
+# opentelemetry (only its hook() is used, by Flock's runtime capture): static-php-cli takes
+# whatever PECL's newest is; pin it like xdebug. Shared and not loaded by default.
+DOWNLOAD_ARGS="$DOWNLOAD_ARGS --custom-url=opentelemetry:https://pecl.php.net/get/opentelemetry-1.4.2.tgz"
 
 echo "::group::static-php-cli $SPC_VERSION"
 if [[ ! -x ./spc ]]; then

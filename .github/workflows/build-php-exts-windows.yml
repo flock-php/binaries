@@ -3,8 +3,9 @@
 #   from source  php.windows.extensions.from_source in versions.json, with php-windows-builder
 #                from the GitHub tag (or url, another source php-windows-builder can fetch);
 #                refs.<minor> picks another release for that minor, and an extension without a
-#                ref for a minor is left out. imagick reports its version as "@PACKAGE_VERSION@"
-#                on Windows, as in the imagick maintainers' own Windows DLLs.
+#                ref for a minor, or with a min_php above it, is left out. imagick reports its
+#                version as "@PACKAGE_VERSION@" on Windows, as in the imagick maintainers' own
+#                Windows DLLs.
 #   mongodb      the MongoDB maintainers' own signed DLLs (PHP 8.1+), checked against GitHub's SHA-256
 # Published as php-exts-<minor>-build<N>-windows-x64.zip on the php-exts-<minor> release:
 #   ext/php_<name>.dll   the extensions
@@ -52,6 +53,7 @@ jobs:
         run: |
           echo "asset=php-exts-$MINOR-build$(jq -r .php.windows.extensions.build versions.json)-windows-x64.zip" >> "$GITHUB_OUTPUT"
           matrix="$(jq -c --arg m "$MINOR" '[.php.windows.extensions.from_source | to_entries[]
+            | select(($m | split(".") | map(tonumber)) >= ((.value.min_php // "0") | split(".") | map(tonumber)))
             | {name: .key, repo: .value.repo, url: (.value.url // ("https://github.com/" + .value.repo)),
                ref: (.value.refs[$m] // .value.ref), libs: (.value.libs // ""), args: (.value.args // "")}
             | select(.ref != null)]' versions.json)"

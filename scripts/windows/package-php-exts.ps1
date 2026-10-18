@@ -1,5 +1,6 @@
 # Assembles the Windows extension pack of one PHP minor and tests it: every DLL has to load into
-# the official thread-safe x64 PHP build of that minor (checked against windows.php.net's SHA-256).
+# the official thread-safe x64 PHP build of that minor (checked against windows.php.net's SHA-256),
+# and opentelemetry's hook() has to fire (scripts/smoke-opentelemetry.php).
 #   -Exts     the build jobs' artifacts, one directory ext-<name>-<minor> per extension
 #   -MongoDB  version of the MongoDB maintainers' own DLLs to add (PHP 8.1+), checked against
 #             GitHub's SHA-256 of the release asset
@@ -100,6 +101,16 @@ foreach ($ext in $built.Keys) {
         $rows += "| $ext | $($built[$ext]) | ✓ $($result.Trim()) |"
     } else {
         $rows += "| $ext | $($built[$ext]) | ✗ $($result.Trim() -replace '\r?\n', ' ') |"; $failed = $true
+    }
+}
+# opentelemetry is only there for its hook(): loading is not enough, the hooks have to fire.
+if ($built.Contains('opentelemetry')) {
+    $probe = Join-Path $root 'scripts/smoke-opentelemetry.php'
+    $result = & $phpExe -n -d "extension_dir=$(Join-Path $php 'ext')" -d extension=opentelemetry $probe 2>&1 | Out-String
+    if ($LASTEXITCODE -eq 0 -and $result -like 'hook ok *') {
+        $rows += "| opentelemetry hook() | $($built['opentelemetry']) | ✓ $($result.Trim()) |"
+    } else {
+        $rows += "| opentelemetry hook() | $($built['opentelemetry']) | ✗ $($result.Trim() -replace '\r?\n', ' ') |"; $failed = $true
     }
 }
 $rows | Write-Output

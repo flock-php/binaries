@@ -32,6 +32,8 @@ type versions struct {
 					Repo string            `json:"repo"`
 					Ref  string            `json:"ref"`
 					Refs map[string]string `json:"refs"`
+					// MinPHP leaves the extension out of the packs of older minors (opentelemetry: 8.0).
+					MinPHP string `json:"min_php"`
 				} `json:"from_source"`
 				MongoDB string `json:"mongodb"`
 			} `json:"extensions"`

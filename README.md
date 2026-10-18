@@ -37,12 +37,24 @@ when it isn't published yet. Patch releases come in on their own; a new line (Po
 `php-exts-<minor>` holds thread-safe DLLs built with
 [php-windows-builder](https://github.com/php/php-windows-builder) against the official build of
 that minor, so they load into both `php` and `frankenphp` for Windows: apcu, igbinary, imagick
-(with ImageMagick), pcov, redis and xdebug, plus the MongoDB maintainers' own DLLs from PHP 8.1 on.
-Releases per extension, and per minor where one needs another release (xdebug 3.1 for PHP 7.4),
-are in `php.windows.extensions`. memcached is macOS only. On Windows, imagick reports its version
+(with ImageMagick), pcov, redis, xdebug and opentelemetry (from PHP 8.0 on, `min_php`), plus the
+MongoDB maintainers' own DLLs from PHP 8.1 on. Releases per extension, and per minor where one
+needs another release (xdebug 3.1 for PHP 7.4), are in `php.windows.extensions`. memcached is
+macOS only. On Windows, imagick reports its version
 as `@PACKAGE_VERSION@` (`phpversion('imagick')`), like the imagick maintainers' own Windows DLLs:
 its source leaves the version to the PECL release. The pack only depends on the minor, so it
 isn't rebuilt for PHP patch releases; raise `php.windows.extensions.build` to rebuild it.
+
+### opentelemetry
+
+The macOS `php` and `frankenphp` packages and the Windows packs from PHP 8.0 on have the
+[opentelemetry extension](https://github.com/open-telemetry/opentelemetry-php-instrumentation)
+(Apache-2.0) as a shared extension: `ext/opentelemetry.so` on macOS (thread-safe in `frankenphp`),
+`ext/php_opentelemetry.dll` in the packs. Flock doesn't load it by default: its runtime
+capture (queries, logs, views, jobs and dumps) loads it with its own ini file and uses only its
+`hook()` function. The release is pinned in `packages/php/macos/build.sh` (macOS, from PECL) and
+`php.windows.extensions.from_source` (Windows); the smoke tests check that hooks fire
+(`scripts/smoke-opentelemetry.php`), not just that the extension loads.
 
 ### Package layouts
 
@@ -120,7 +132,7 @@ reports, nothing gets built:
 |---|---|
 | New release line: PHP 8.6 | a line newer than the newest we build. MySQL and MariaDB: LTS lines only; Node.js: even majors only; never pre-releases. |
 | End of life: Node.js 18 | a line we build no longer gets updates upstream ([endoflife.date](https://endoflife.date)) |
-| Updates available for pinned versions | something pinned (FrankenPHP, static-php-cli, OpenSSL, the Windows extensions, xdebug on macOS) has a newer stable release; one issue, updated weekly |
+| Updates available for pinned versions | something pinned (FrankenPHP, static-php-cli, OpenSSL, the Windows extensions, xdebug and opentelemetry on macOS) has a newer stable release; one issue, updated weekly |
 
 Close a new-line or end-of-life issue to decide against it (skip the line, keep building it): it
 isn't reported again. Issues close by themselves once versions.json covers them (the line was added

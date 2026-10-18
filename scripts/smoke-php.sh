@@ -3,6 +3,7 @@
 #   - php and php-fpm run, php-fpm accepts a minimal config
 #   - every compiled-in extension is loaded
 #   - every shared extension in ext/ loads on its own (zend_extension for xdebug)
+#   - opentelemetry's hook() fires (scripts/smoke-opentelemetry.php)
 # Missing compiled-in extensions fail the test. Shared extensions are reported; pass
 # REQUIRE_SHARED=1 to fail on them too. Results are appended to $GITHUB_STEP_SUMMARY when set.
 # Usage: scripts/smoke-php.sh <dir> <static-ext,...> <shared-ext,...>
@@ -72,5 +73,16 @@ for ext in ${SHARED//,/ }; do
     [[ "${REQUIRE_SHARED:-0}" == 1 ]] && failed=1
   fi
 done
+
+# opentelemetry is only there for its hook(): loading is not enough, the hooks have to fire.
+if [[ -f "$DIR/ext/opentelemetry.so" ]]; then
+  out="$("$php" -n -d "extension=$(cd "$DIR/ext" && pwd)/opentelemetry.so" "$(dirname "$0")/smoke-opentelemetry.php" 2>&1)"
+  if [[ "$out" == "hook ok "* ]]; then
+    echo "✓ opentelemetry $out" | tee -a "$summary"
+  else
+    echo "✗ opentelemetry hook(): $out" | tee -a "$summary"
+    [[ "${REQUIRE_SHARED:-0}" == 1 ]] && failed=1
+  fi
+fi
 
 exit $failed

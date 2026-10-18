@@ -2,7 +2,7 @@
 # Smoke-tests a FrankenPHP package directory (bin/frankenphp, ext/*.so) the way Octane uses it:
 #   - frankenphp runs, embeds a thread-safe PHP of the expected minor
 #   - every compiled-in extension is loaded (frankenphp php-cli)
-#   - every shared extension in ext/ loads into the embedded PHP
+#   - every shared extension in ext/ loads into the embedded PHP; opentelemetry's hook() fires
 #   - a classic request and worker mode (frankenphp_handle_request, state kept between requests)
 # Results are appended to $GITHUB_STEP_SUMMARY when set.
 # Usage: scripts/smoke-frankenphp.sh <dir> <php-minor> <static-ext,...>
@@ -61,6 +61,11 @@ for so in "$DIR"/ext/*.so; do
     report "✗ shared $name: $(tr '\n' ' ' <<<"$out" | cut -c1-200)"; failed=1
   fi
 done
+# opentelemetry is only there for its hook(): loading is not enough, the hooks have to fire.
+if [[ -d "$work/ini-opentelemetry" ]]; then
+  out="$(PHP_INI_SCAN_DIR="$work/ini-opentelemetry" "$fp" php-cli "$(dirname "$0")/smoke-opentelemetry.php" 2>&1)"
+  if [[ "$out" == "hook ok "* ]]; then report "✓ opentelemetry $out"; else report "✗ opentelemetry hook(): $(tr '\n' ' ' <<<"$out" | cut -c1-200)"; failed=1; fi
+fi
 
 # HTTP: one classic request and two worker-mode requests (the counter proves the worker persists).
 mkdir -p "$work/public" "$work/worker"

@@ -21,7 +21,7 @@ import (
 func runCheck(args []string) error {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	versionsPath := fs.String("versions", "versions.json", "versions file")
-	buildSh := fs.String("php-build", "packages/php/macos/build.sh", "PHP macOS build script (pins xdebug)")
+	buildSh := fs.String("php-build", "packages/php/macos/build.sh", "PHP macOS build script (pins xdebug and opentelemetry)")
 	out := fs.String("out", "findings.json", "where to write the findings")
 	fs.Parse(args)
 
@@ -289,8 +289,10 @@ func check(v *versions, phpBuildScript string, src sources, now time.Time) (find
 	if ossl := opensslPin(v); ossl != "" {
 		pins = append(pins, pin{"OpenSSL", ossl, "openssl/openssl", "openssl-", "`OPENSSL_VERSION` of postgres and mariadb (then raise their macOS `build`)", truncate(ossl, 2)})
 	}
-	if m := regexp.MustCompile(`xdebug-([0-9.]+)\.tgz`).FindStringSubmatch(phpBuildScript); m != nil {
-		pins = append(pins, pin{"xdebug (macOS)", m[1], "xdebug/xdebug", "", "`packages/php/macos/build.sh` (then raise `php.macos.build` and `frankenphp.macos.build`)", ""})
+	for _, ext := range []struct{ name, repo string }{{"xdebug", "xdebug/xdebug"}, {"opentelemetry", "open-telemetry/opentelemetry-php-instrumentation"}} {
+		if m := regexp.MustCompile(ext.name + `-([0-9.]+)\.tgz`).FindStringSubmatch(phpBuildScript); m != nil {
+			pins = append(pins, pin{ext.name + " (macOS)", m[1], ext.repo, "", "`packages/php/macos/build.sh` (then raise `php.macos.build` and `frankenphp.macos.build`)", ""})
+		}
 	}
 	exts := v.PHP.Windows.Extensions
 	for _, name := range sortedKeys(exts.FromSource) {
