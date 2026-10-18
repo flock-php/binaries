@@ -10,10 +10,12 @@ import (
 type fakeSources struct {
 	cycles map[string][]eolCycle
 	github map[string][]string
+	rcs    map[string]string
 }
 
 func (f fakeSources) eolCycles(p string) ([]eolCycle, error)       { return f.cycles[p], nil }
 func (f fakeSources) githubVersions(r, _ string) ([]string, error) { return f.github[r], nil }
+func (f fakeSources) phpRCs() (map[string]string, error)           { return f.rcs, nil }
 
 func cyc(cycle, released string, eol, lts any) eolCycle {
 	e, _ := json.Marshal(eol)
@@ -61,6 +63,7 @@ func TestCheck(t *testing.T) {
 			"krakjoe/apcu":             {"5.1.28"},
 			"mongodb/mongo-php-driver": {"2.5.5", "1.21.12"},
 		},
+		rcs: map[string]string{"8.5.13": "8.5.13RC1", "8.7.0": "8.7.0RC1", "8.6.1": "8.6.1RC1"},
 	}
 	findings, problems := check(&v, "--custom-url=xdebug:https://xdebug.org/files/xdebug-3.5.3.tgz\n--custom-url=opentelemetry:https://pecl.php.net/get/opentelemetry-1.4.2.tgz", src, now)
 	if len(problems) > 0 {
@@ -71,7 +74,8 @@ func TestCheck(t *testing.T) {
 		got[f.Title] = f
 	}
 	want := []string{
-		"New release line: PHP 8.6", // released; 8.7 isn't yet
+		"New release line: PHP 8.6", // released
+		"New release line: PHP 8.7", // a release candidate (patch RCs aren't reported)
 		"End of life: PHP 8.1",      // only Windows builds it
 		"New release line: MySQL 10.7",
 		"New release line: Node.js 28",
@@ -93,6 +97,9 @@ func TestCheck(t *testing.T) {
 	}
 	if b := got["New release line: PHP 8.6"].Body; !strings.Contains(b, "`php.macos.minors`, `php.windows.minors` (check that the extensions") || !strings.Contains(b, "`frankenphp.minors`") {
 		t.Errorf("PHP 8.6 body: %s", b)
+	}
+	if b := got["New release line: PHP 8.7"].Body; !strings.Contains(b, "release candidate phase (8.7.0RC1)") || !strings.Contains(b, "beta channel only") {
+		t.Errorf("PHP 8.7 body: %s", b)
 	}
 	if b := got["End of life: PHP 8.1"].Body; !strings.Contains(b, "since 2025-12-31") || !strings.Contains(b, "from `php.windows.minors` in") {
 		t.Errorf("PHP 8.1 body: %s", b)

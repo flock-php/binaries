@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Mirrors the Node.js archive unchanged. Checked against SHASUMS256.txt, whose signature is
-# verified with the Node.js release keys (nodejs/release-keys).
+# verified with the Node.js release keys (nodejs/release-keys). Writes node-<version>.json next to
+# it: whether the release is LTS, which Flock goes by when it picks the Node.js to install first.
 # Usage: packages/node/mirror.sh <version> <platform> <out-file>
 set -euo pipefail
 . "$(dirname "$0")/../../scripts/lib.sh"
@@ -19,3 +20,4 @@ gpgv --keyring "$tmp/pubring.kbx" "$tmp/SHASUMS256.txt.sig" "$tmp/SHASUMS256.txt
 echo "✓ SHASUMS256.txt signed by a Node.js releaser"
 fetch "$base/$name" "$OUT"
 check_sha256 "$OUT" "$(awk -v n="$name" '$2 == n {print $1}' "$tmp/SHASUMS256.txt")"
+node_release_info "$V" "$(dirname "$OUT")/node-$V.json"

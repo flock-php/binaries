@@ -10,6 +10,8 @@ V="$1"; PLATFORM="$2"; OUT="$3"
 
 [[ "$PLATFORM" == windows-x64 ]] || { echo "PHP is only mirrored for Windows (macOS: build-php-macos.yml)" >&2; exit 1; }
 base=https://downloads.php.net/~windows/releases
+# Release candidates (8.6.0RC3) are in qa/, which has a releases.json of its own.
+[[ "$V" =~ RC[0-9]+$ ]] && base=https://downloads.php.net/~windows/qa
 minor="$(cut -d. -f1-2 <<<"$V")"
 read -r version zip sum < <(fetch_text "$base/releases.json" | jq -r --arg m "$minor" '
   .[$m] as $r | ($r | keys[] | select(test("^ts-v[sc][0-9]+-x64$"))) as $k

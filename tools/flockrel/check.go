@@ -87,9 +87,12 @@ func (c eolCycle) isLTS() bool {
 type sources interface {
 	eolCycles(product string) ([]eolCycle, error)
 	githubVersions(repo, tagPrefix string) ([]string, error) // stable versions, prefix and "v" removed
+	phpRCs() (map[string]string, error)                      // php.net's release candidates: "8.6.0" → "8.6.0RC3"
 }
 
 type liveSources struct{}
+
+func (liveSources) phpRCs() (map[string]string, error) { return phpRCs() }
 
 func (liveSources) eolCycles(product string) ([]eolCycle, error) {
 	var cycles []eolCycle
@@ -178,8 +181,9 @@ func check(v *versions, phpBuildScript string, src sources, now time.Time) (find
 
 	// lineFindings reports, for one product, lines newer than the newest a config builds and lines
 	// that reached their end of life: one finding per line, listing the configs it concerns (PHP
-	// has three: macOS, Windows, FrankenPHP; the services one each).
-	lineFindings := func(name string, configs []lineConfig, cycles []eolCycle, upstream []string, ltsOnly, evenMajors bool) {
+	// has three: macOS, Windows, FrankenPHP; the services one each). rcs are lines that only have
+	// a release candidate so far, with its version.
+	lineFindings := func(name string, configs []lineConfig, cycles []eolCycle, upstream []string, rcs map[string]string, ltsOnly, evenMajors bool) {
 		var all []string
 		for _, c := range configs {
 			all = append(all, c.lines...)
@@ -217,6 +221,14 @@ func check(v *versions, phpBuildScript string, src sources, now time.Time) (find
 			if len(missing) == 0 {
 				continue
 			}
+			if rc := rcs[l]; rc != "" {
+				findings = append(findings, finding{Kind: "line", Title: fmt.Sprintf("New release line: %s %s", name, l),
+					Body: fmt.Sprintf("%s %s is in its release candidate phase (%s): add `%s` to %s in versions.json to build "+
+						"its release candidates. They go to the beta channel only, never to stable; the release itself replaces "+
+						"them and starts in the experimental channel, to promote once you've tried it in Flock.\n\n"+
+						"Close this issue to skip the line; it won't be reported again.", name, l, rc, l, strings.Join(missing, ", "))})
+				continue
+			}
 			findings = append(findings, finding{Kind: "line", Title: fmt.Sprintf("New release line: %s %s", name, l),
 				Body: fmt.Sprintf("%s %s is out and not built yet: add `%s` to %s in versions.json, test it on a branch, "+
 					"and promote it once you've tried it in Flock (it starts in the experimental channel).\n\n"+
@@ -246,14 +258,32 @@ func check(v *versions, phpBuildScript string, src sources, now time.Time) (find
 	}
 
 	// PHP: macOS, Windows and FrankenPHP each list their minors.
+	// A new minor is reported from its first release candidate on (patch RCs are left out).
 	if cycles, err := src.eolCycles("php"); err != nil {
 		problems = append(problems, "php: "+err.Error())
 	} else {
+		rcs := map[string]string{}
+		var upstream []string
+		if all, err := src.phpRCs(); err != nil {
+			problems = append(problems, "php release candidates: "+err.Error())
+		} else {
+			for _, rc := range all {
+				if newMinorRC.MatchString(rc) {
+					rcs[minorOf(rc)] = rc
+					upstream = append(upstream, minorOf(rc))
+				}
+			}
+		}
+		for _, c := range cycles {
+			if c.ReleaseDate != "" && c.ReleaseDate <= today {
+				delete(rcs, c.Cycle) // released meanwhile
+			}
+		}
 		lineFindings("PHP", []lineConfig{
 			{"`php.macos.minors`", v.PHP.MacOS.Minors, ""},
 			{"`php.windows.minors`", v.PHP.Windows.Minors, " (check that the extensions in `php.windows.extensions` support it)"},
 			{"`frankenphp.minors`", v.FrankenPHP.Minors, ""},
-		}, cycles, nil, false, false)
+		}, cycles, upstream, rcs, false, false)
 	}
 	for _, pkg := range v.packageNames() {
 		s, ok := lineSources[pkg]
@@ -277,7 +307,7 @@ func check(v *versions, phpBuildScript string, src sources, now time.Time) (find
 		if name == "" {
 			name = pkg
 		}
-		lineFindings(name, []lineConfig{{fmt.Sprintf("`packages.%s.lines`", pkg), v.Packages[pkg].Lines, ""}}, cycles, upstream, s.ltsOnly, s.evenMajors)
+		lineFindings(name, []lineConfig{{fmt.Sprintf("`packages.%s.lines`", pkg), v.Packages[pkg].Lines, ""}}, cycles, upstream, nil, s.ltsOnly, s.evenMajors)
 	}
 
 	// Pinned versions: one finding listing everything with a newer stable release.

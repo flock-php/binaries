@@ -32,6 +32,21 @@ looked up (`tools/flockrel/upstream.go`, php.net and windows.php.net for PHP) an
 when it isn't published yet. Patch releases come in on their own; a new line (PostgreSQL 19, Node.js
 28, PHP 8.6) is one entry in `versions.json`.
 
+### PHP release candidates
+
+A PHP minor in `versions.json` that has no release yet gets its release candidates instead
+(8.6.0RC3: php.net's list of release candidates for macOS, windows.php.net's `qa/` for Windows),
+until the release itself is out. Only the RCs of a new minor are built, not the RCs of patch
+releases (8.4.27RC1). They are pre-releases, so they go to the beta channel and never to stable;
+the release starts in experimental like any new line. FrankenPHP and the Windows extension pack
+are built on the RC too, but upstream may not support the new minor yet: those builds are marked
+optional in the plan, a failure is only a warning, and the next daily run tries again. Flock offers
+PHP on Windows only together with its extension pack. The pack is kept for the release (the
+extension API doesn't change after the first RC); raise `php.windows.extensions.build` to rebuild it.
+PHP itself on macOS is not optional: add the minor once static-php-cli and the compiled-in
+extensions (apcu, igbinary, redis) support it (PHP 8.6: not yet, static-php-cli 2.8.5 can't patch
+its source).
+
 ### Windows extension packs
 
 `php-exts-<minor>` holds thread-safe DLLs built with
@@ -130,7 +145,7 @@ reports, nothing gets built:
 
 | Issue | When |
 |---|---|
-| New release line: PHP 8.6 | a line newer than the newest we build. MySQL and MariaDB: LTS lines only; Node.js: even majors only; never pre-releases. |
+| New release line: PHP 8.6 | a line newer than the newest we build. MySQL and MariaDB: LTS lines only; Node.js: even majors only. A new PHP minor is reported from its first release candidate on; otherwise never pre-releases. |
 | End of life: Node.js 18 | a line we build no longer gets updates upstream ([endoflife.date](https://endoflife.date)) |
 | Updates available for pinned versions | something pinned (FrankenPHP, static-php-cli, OpenSSL, the Windows extensions, xdebug and opentelemetry on macOS) has a newer stable release; one issue, updated weekly |
 
@@ -208,6 +223,7 @@ effect on time and signatures never expire) and by hand:
         "<platform>": {
           "build": 2, "url": "https://…", "sha256": "…", "size": 92651566, "published": "…",
           "prerelease": true,
+          "lts": true,
           "yanked": { "1": "Crashes on macOS 13; use build 2" }
         }
       }
@@ -216,8 +232,9 @@ effect on time and signatures never expire) and by hand:
 }
 ```
 
-`prerelease` and `yanked` (yanked builds of that version, build number → reason) only appear when
-they apply. Flock downloads `releases/download/manifest/<manifest>` and `<manifest>.sig` for its
+`prerelease`, `lts` and `yanked` (yanked builds of that version, build number → reason) only appear
+when they apply. `lts` marks a Node.js release nodejs.org lists as LTS: the mirror records it in
+`node-<version>.json` on the release, and Flock installs the newest LTS line first. Flock downloads `releases/download/manifest/<manifest>` and `<manifest>.sig` for its
 channel and checks them against the public key in [`manifest.pub`](manifest.pub), which it ships
 with. It rejects a manifest that doesn't verify, isn't for the channel it asked for (`channel`), has
 expired (30 days), or has a lower `serial` than the last one it accepted for that channel. A version

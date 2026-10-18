@@ -40,6 +40,7 @@ type entry struct {
 	Size       int64             `json:"size"`
 	Published  time.Time         `json:"published"`
 	Prerelease bool              `json:"prerelease,omitempty"`
+	LTS        bool              `json:"lts,omitempty"` // Node.js: a long-term support release
 	Yanked     map[string]string `json:"yanked,omitempty"`
 
 	assetName string // which release asset, for filling in SHA256
@@ -189,7 +190,7 @@ func channelManifest(all []placed, l level, now time.Time, v *versions) manifest
 		a := chosen.Asset
 		m.Packages[s.pkg][s.ver][s.platform] = entry{
 			Build: chosen.Build, URL: a.BrowserDownloadURL, Size: a.Size, Published: a.CreatedAt,
-			Prerelease: chosen.Prerelease, Yanked: yanked, assetName: a.Name,
+			Prerelease: chosen.Prerelease, LTS: chosen.LTS, Yanked: yanked, assetName: a.Name,
 		}
 	}
 	return m
@@ -284,7 +285,8 @@ func readBase64(path string, size int) ([]byte, error) {
 }
 
 // publishedBuilds lists every build on the releases: <package>-<version> tags with
-// <package>-<version>-build<N>-<platform> assets.
+// <package>-<version>-build<N>-<platform> assets, and what <package>-<version>.json says about the
+// release (written when it was mirrored).
 func publishedBuilds(repo string, v *versions) ([]published, error) {
 	releases, err := listReleases(repo)
 	if err != nil {
@@ -297,11 +299,36 @@ func publishedBuilds(repo string, v *versions) ([]published, error) {
 			continue
 		}
 		pkg, ver := parts[1], parts[2]
+		var info releaseInfo
+		for _, a := range r.Assets {
+			if a.Name == r.TagName+".json" {
+				if info, err = fetchReleaseInfo(a); err != nil {
+					return nil, fmt.Errorf("%s: %w", a.Name, err)
+				}
+			}
+		}
+		var found bool
 		for _, a := range r.Assets {
 			if n, platform, ok := parseAsset(r.TagName, a.Name); ok {
-				builds = append(builds, published{Package: pkg, Version: ver, Platform: platform, Build: n, Line: lineOf(v, pkg, ver), Asset: a})
+				found = true
+				builds = append(builds, published{Package: pkg, Version: ver, Platform: platform, Build: n, Line: lineOf(v, pkg, ver),
+					LTS: info.isLTS(), Asset: a})
 			}
+		}
+		if found && pkg == "node" && info.LTS == nil {
+			fmt.Fprintf(os.Stderr, "warning: %s has no %s.json: not marked LTS\n", r.TagName, r.TagName)
 		}
 	}
 	return builds, nil
+}
+
+// releaseInfo is <package>-<version>.json: what upstream said about the release when it was
+// mirrored. LTS is Node.js's index entry: the LTS codename, or false.
+type releaseInfo struct {
+	LTS json.RawMessage `json:"lts"`
+}
+
+func (r releaseInfo) isLTS() bool {
+	var codename string
+	return json.Unmarshal(r.LTS, &codename) == nil && codename != ""
 }

@@ -93,6 +93,21 @@ func sha256Of(a asset) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// fetchReleaseInfo downloads a release's <package>-<version>.json.
+func fetchReleaseInfo(a asset) (releaseInfo, error) {
+	resp, err := httpClient.Get(a.BrowserDownloadURL)
+	if err != nil {
+		return releaseInfo{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return releaseInfo{}, fmt.Errorf("GET %s: %s", a.BrowserDownloadURL, resp.Status)
+	}
+	var info releaseInfo
+	err = json.NewDecoder(io.LimitReader(resp.Body, 1<<16)).Decode(&info)
+	return info, err
+}
+
 // tagPattern splits a release tag into package and version: php-8.4.26 → php, 8.4.26.
 var tagPattern = regexp.MustCompile(`^([a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*)-(\d[0-9A-Za-z.+]*)$`)
 

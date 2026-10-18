@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -27,8 +28,10 @@ func TestPlace(t *testing.T) {
 		b("postgres", "19.1", mac, 1, 30),  // patch of 19, once 19.0 is stable
 		b("node", "28.0.0", mac, 1, 0),     // new line, no decision: beta after 7 days (168 h)
 		b("php", "8.6.0RC1", mac, 1, 0),    // pre-release, approved for stable anyway
-		b("php", "8.4.26", mac, 1, -24),    // baseline
-		b("php", "8.4.26", mac, 2, 1),      // rebuild: new
+		b("php", "8.6.0RC2", mac, 1, 5),
+		b("php", "8.6.0", mac, 1, 10),   // the release after its RCs: a new line
+		b("php", "8.4.26", mac, 1, -24), // baseline
+		b("php", "8.4.26", mac, 2, 1),   // rebuild: new
 		b("valkey", "9.1.2", "windows-x64", 1, -24),
 		b("valkey", "9.2.0", "windows-x64", 1, 2), // new line, approved for beta, held
 		b("mysql", "9.7.2", mac, 1, -24),
@@ -67,6 +70,8 @@ func TestPlace(t *testing.T) {
 		{168, "node-28.0.0-build1-macos-arm64", "new", beta},
 		{1000, "node-28.0.0-build1-macos-arm64", "new", beta}, // automatic beta never becomes stable
 		{1000, "php-8.6.0RC1-build1-macos-arm64", "prerelease", beta},
+		{1000, "php-8.6.0RC2-build1-macos-arm64", "prerelease", beta},
+		{20, "php-8.6.0-build1-macos-arm64", "new", experimental},
 		{1000, "php-8.4.26-build1-macos-arm64", "baseline", stable},
 		{10, "php-8.4.26-build2-macos-arm64", "new", experimental},
 		{1000, "valkey-9.2.0-build1-windows-x64", "new", beta}, // approved, but held before stable
@@ -128,6 +133,32 @@ func TestChannelManifest(t *testing.T) {
 	}
 	if m := channelManifest(all, beta, now, v); m.Channel != "beta" {
 		t.Errorf("channel %q", m.Channel)
+	}
+	// LTS comes from the build's release.
+	lts := p(1, stable, "")
+	lts.LTS = true
+	if e, _ := get([]placed{lts}, stable); !e.LTS {
+		t.Error("LTS release: entry not marked LTS")
+	}
+	if e, _ := get([]placed{p(1, stable, "")}, stable); e.LTS {
+		t.Error("release without LTS: entry marked LTS")
+	}
+}
+
+func TestReleaseInfo(t *testing.T) {
+	for data, want := range map[string]bool{
+		`{"lts":"Krypton"}`: true,
+		`{"lts":false}`:     false,
+		`{"lts":""}`:        false,
+		`{}`:                false,
+	} {
+		var info releaseInfo
+		if err := json.Unmarshal([]byte(data), &info); err != nil {
+			t.Fatal(err)
+		}
+		if got := info.isLTS(); got != want {
+			t.Errorf("%s: LTS %v, want %v", data, got, want)
+		}
 	}
 }
 

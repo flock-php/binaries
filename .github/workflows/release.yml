@@ -65,6 +65,7 @@ jobs:
       version: ${{ matrix.version }}
       package: ${{ matrix.package }}
       publish: true
+      optional: ${{ matrix.optional == true }}
 
   php-exts-windows:
     needs: plan
@@ -79,6 +80,7 @@ jobs:
     with:
       minor: ${{ matrix.version }}
       publish: true
+      optional: ${{ matrix.optional == true }}
 
   frankenphp-windows:
     needs: plan
@@ -93,6 +95,7 @@ jobs:
     with:
       version: ${{ matrix.version }}
       publish: true
+      optional: ${{ matrix.optional == true }}
 
   builds:
     needs: plan

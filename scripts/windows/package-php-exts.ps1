@@ -32,14 +32,20 @@ function Get-RepoLicense([string] $repo, [string] $ref, [string] $name) {
     Invoke-WebRequest $url -OutFile (Join-Path $licenses "$name.txt")
 }
 
-# The official PHP build the pack is for (and tested against).
-$releases = Invoke-RestMethod https://downloads.php.net/~windows/releases/releases.json
-$entry = $releases.$Minor
+# The official PHP build the pack is for (and tested against); for a minor without a release
+# yet, its release candidate from qa/.
+$base = 'https://downloads.php.net/~windows/releases'
+$entry = (Invoke-RestMethod "$base/releases.json").$Minor
+if (-not $entry) {
+    $base = 'https://downloads.php.net/~windows/qa'
+    $entry = (Invoke-RestMethod "$base/releases.json").$Minor
+    if ($entry -and $entry.version -notmatch '^\d+\.\d+\.0RC\d+$') { $entry = $null }
+}
 $key = $entry.PSObject.Properties.Name | Where-Object { $_ -match '^ts-v[sc]\d+-x64$' } | Select-Object -First 1
 if (-not $key) { throw "no thread-safe x64 build of PHP $Minor in releases.json" }
 $vs = $key -replace '^ts-(v[sc]\d+)-x64$', '$1'
 $phpZip = Join-Path $work 'php.zip'
-Invoke-WebRequest "https://downloads.php.net/~windows/releases/$($entry.$key.zip.path)" -OutFile $phpZip
+Invoke-WebRequest "$base/$($entry.$key.zip.path)" -OutFile $phpZip
 if ((Get-FileHash $phpZip -Algorithm SHA256).Hash -ne $entry.$key.zip.sha256) { throw "PHP $($entry.version): SHA-256 mismatch" }
 $php = Join-Path $work 'php'
 Expand-Archive $phpZip -DestinationPath $php

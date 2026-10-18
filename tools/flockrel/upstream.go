@@ -41,9 +41,24 @@ func newestPerLine(lines, candidates []string) map[string]string {
 	return out
 }
 
-// cmpVersion compares dotted numeric versions: 8.4.10 > 8.4.9, 8.10 > 8.4.
+// newMinorRC matches a release candidate of a PHP minor that has no release yet: 8.6.0RC3.
+// Patch RCs (8.4.27RC1) don't match: they are replaced by their release two weeks later.
+var newMinorRC = regexp.MustCompile(`^\d+\.\d+\.0RC\d+$`)
+
+// versionParts splits a version into its numbers and a pre-release suffix: 8.6.0RC2 → 8.6.0, RC2.
+var versionParts = regexp.MustCompile(`^(\d+(?:\.\d+)*)(.*)$`)
+
+// suffixParts splits a pre-release suffix into its name and number: RC2, -rc.2 → rc, 2.
+var suffixParts = regexp.MustCompile(`^[-.]?([A-Za-z]*)[-.]?(\d*)$`)
+
+// cmpVersion compares dotted numeric versions: 8.4.10 > 8.4.9, 8.10 > 8.4, with a pre-release
+// before its release: 8.6.0alpha1 < 8.6.0RC2 < 8.6.0RC10 < 8.6.0.
 func cmpVersion(a, b string) int {
-	as, bs := strings.Split(a, "."), strings.Split(b, ".")
+	ma, mb := versionParts.FindStringSubmatch(a), versionParts.FindStringSubmatch(b)
+	if ma == nil || mb == nil {
+		return strings.Compare(a, b)
+	}
+	as, bs := strings.Split(ma[1], "."), strings.Split(mb[1], ".")
 	for i := 0; i < max(len(as), len(bs)); i++ {
 		var x, y int
 		if i < len(as) {
@@ -58,6 +73,29 @@ func cmpVersion(a, b string) int {
 			}
 			return 1
 		}
+	}
+	switch sa, sb := ma[2], mb[2]; {
+	case sa == sb:
+		return 0
+	case sa == "":
+		return 1
+	case sb == "":
+		return -1
+	}
+	pa, pb := suffixParts.FindStringSubmatch(ma[2]), suffixParts.FindStringSubmatch(mb[2])
+	if pa == nil || pb == nil {
+		return strings.Compare(ma[2], mb[2])
+	}
+	if c := strings.Compare(strings.ToLower(pa[1]), strings.ToLower(pb[1])); c != 0 {
+		return c // alpha < beta < rc
+	}
+	x, _ := strconv.Atoi(pa[2])
+	y, _ := strconv.Atoi(pb[2])
+	if x != y {
+		if x < y {
+			return -1
+		}
+		return 1
 	}
 	return 0
 }

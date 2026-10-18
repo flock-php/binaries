@@ -2,7 +2,9 @@
 # downloads it, checks it against the vendor's checksum or signature (packages/<package>/mirror.sh),
 # smoke-tests it on that platform (and the vendor's code signature, where versions.json sets a
 # SIGNER), and publishes it as <package>-<version>-build<N>-<platform>.<ext> on the
-# <package>-<version> release, next to the upstream source when the license asks for it.
+# <package>-<version> release, next to the upstream source when the license asks for it. A mirror.sh
+# may also write <package>-<version>.json, what upstream says about the release (Node.js: LTS or
+# not): it goes on the release once, next to the archives, and the manifest reads it from there.
 # Called by release.yml for every version without that build yet; run it by hand to test.
 # Nothing is published unless every check passed, and a published asset is never replaced.
 name: Mirror
@@ -76,7 +78,9 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.config.outputs.asset }}
-          path: ${{ steps.config.outputs.asset }}
+          path: |
+            ${{ steps.config.outputs.asset }}
+            ${{ inputs.package }}-${{ inputs.version }}.json
           retention-days: 7
 
   test:
@@ -122,4 +126,4 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: ${{ env.ASSET }}
-      - run: bash scripts/publish.sh "$PKG" "$VERSION" "$ASSET"
+      - run: bash scripts/publish.sh "$PKG" "$VERSION" "$ASSET" "$PKG-$VERSION.json"

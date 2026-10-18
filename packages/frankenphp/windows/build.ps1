@@ -21,8 +21,10 @@ $Php = ($Version -split '\.')[0..1] -join '.'
 $FrankenPHP = $FrankenPHP.TrimStart('v')
 
 # PHP: releases.json instead of the directory listing (403 since October 2026). Both the build
-# and its devel pack (headers, import libraries) are checked against its SHA-256.
-$releases = Invoke-RestMethod https://downloads.php.net/~windows/releases/releases.json
+# and its devel pack (headers, import libraries) are checked against its SHA-256. Release
+# candidates (8.6.0RC3) are in qa/, with a releases.json of their own.
+$base = if ($Version -match 'RC\d+$') { 'https://downloads.php.net/~windows/qa' } else { 'https://downloads.php.net/~windows/releases' }
+$releases = Invoke-RestMethod "$base/releases.json"
 $entry = $releases.$Php
 $key = $entry.PSObject.Properties.Name | Where-Object { $_ -match '^ts-v[sc]\d+-x64$' } | Select-Object -First 1
 if (-not $key) { throw "no thread-safe x64 build of PHP $Php in releases.json" }
@@ -32,7 +34,7 @@ Write-Output "PHP $version ($key)"
 foreach ($pack in 'zip', 'devel_pack') {
     $file = $entry.$key.$pack.path
     $dest = Join-Path $work "$pack.zip"
-    Invoke-WebRequest "https://downloads.php.net/~windows/releases/$file" -OutFile $dest
+    Invoke-WebRequest "$base/$file" -OutFile $dest
     $sum = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLower()
     if ($sum -ne $entry.$key.$pack.sha256.ToLower()) { throw "$file`: SHA-256 $sum, expected $($entry.$key.$pack.sha256)" }
     Write-Output "✓ $file SHA-256 $sum"

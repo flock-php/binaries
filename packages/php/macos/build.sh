@@ -43,8 +43,10 @@ if [[ "$PHP_MINOR" == 8.1 ]]; then
 fi
 
 # Stable Xdebug: static-php-cli takes the newest tag, which can be an alpha (3.6.0alpha1
-# no longer builds for 8.1). 3.5.3 supports PHP 8.0–8.5.
-DOWNLOAD_ARGS="${DOWNLOAD_ARGS:-} --custom-url=xdebug:https://xdebug.org/files/xdebug-3.5.3.tgz"
+# no longer builds for 8.1). 3.5.3 supports PHP 8.0–8.5; 8.6 has only 3.6.0alpha1 so far.
+xdebug=3.5.3
+[[ "$PHP_MINOR" == 8.6 ]] && xdebug=3.6.0alpha1
+DOWNLOAD_ARGS="${DOWNLOAD_ARGS:-} --custom-url=xdebug:https://xdebug.org/files/xdebug-$xdebug.tgz"
 # opentelemetry (only its hook() is used, by Flock's runtime capture): static-php-cli takes
 # whatever PECL's newest is; pin it like xdebug. Shared and not loaded by default.
 DOWNLOAD_ARGS="$DOWNLOAD_ARGS --custom-url=opentelemetry:https://pecl.php.net/get/opentelemetry-1.4.2.tgz"
@@ -64,8 +66,26 @@ echo "::endgroup::"
 all="$STATIC_EXTS${SHARED_EXTS:+,$SHARED_EXTS}"
 
 echo "::group::Download sources for PHP $PHP_VERSION"
+# A release candidate (8.6.0RC3) isn't on php.net/distributions: php.net's list of release
+# candidates has its tarball (on the release manager's downloads.php.net page) and SHA-256.
+rc_sum=""
+with_php="$PHP_VERSION"
+if [[ "$PHP_VERSION" =~ RC[0-9]+$ ]]; then
+  read -r rc_url rc_sum < <(curl -fsSL --retry 3 'https://www.php.net/pre-release-builds.php?format=json' \
+    | jq -r --arg v "$PHP_VERSION" '.[] | objects | .release | objects | select(.version == $v) | "\(.files.xz.path) \(.files.xz.sha256)"')
+  [[ -n "${rc_url:-}" ]] || { echo "::error::php.net doesn't list PHP $PHP_VERSION as a release candidate"; exit 1; }
+  DOWNLOAD_ARGS="$DOWNLOAD_ARGS --custom-url=php-src:$rc_url"
+  with_php="$PHP_MINOR" # static-php-cli only takes x.y or x.y.z; the source is the RC tarball
+fi
 # shellcheck disable=SC2086
-./spc download --with-php="$PHP_VERSION" --for-extensions="$all" --prefer-pre-built --retry=3 ${DOWNLOAD_ARGS:-}
+./spc download --with-php="$with_php" --for-extensions="$all" --prefer-pre-built --retry=3 ${DOWNLOAD_ARGS:-}
+if [[ -n "$rc_sum" ]]; then
+  rc_file="downloads/$(basename "$rc_url")"
+  [[ -f "$rc_file" ]] || { echo "::error::static-php-cli didn't save $rc_file"; ls downloads; exit 1; }
+  got="$(shasum -a 256 "$rc_file" | cut -d' ' -f1)"
+  [[ "$got" == "$rc_sum" ]] || { echo "::error::$rc_file: SHA-256 $got, expected $rc_sum"; exit 1; }
+  echo "✓ $(basename "$rc_file") SHA-256 $got"
+fi
 if [[ "$TARGET" == frankenphp ]]; then
   # FRANKENPHP_VERSION pins the release; without it static-php-cli takes the newest.
   ./spc download frankenphp --retry=3 \
