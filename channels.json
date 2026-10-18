@@ -1,6 +1,55 @@
 {
   "baseline": "2026-10-16T19:00:00Z",
-  "approved": {},
+  "approved": {
+    "frankenphp-8.2.34-build2-macos-arm64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "frankenphp-8.3.35-build2-macos-arm64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "frankenphp-8.4.26-build2-macos-arm64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "frankenphp-8.5.11-build2-macos-arm64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-8.1.34-build2-macos-arm64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-8.2.34-build2-macos-arm64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-8.3.35-build2-macos-arm64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-8.4.26-build2-macos-arm64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-8.5.11-build2-macos-arm64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-exts-7.4-build2-windows-x64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-exts-8.0-build2-windows-x64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-exts-8.1-build2-windows-x64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-exts-8.2-build2-windows-x64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-exts-8.3-build2-windows-x64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-exts-8.4-build2-windows-x64": {
+      "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-exts-8.5-build2-windows-x64": {
+      "beta": "2026-10-18T12:56:59Z"
+    }
+  },
   "hold": {},
   "yanked": {}
 }
