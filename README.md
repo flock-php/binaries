@@ -7,26 +7,26 @@ signed manifest, so nothing has to be compiled on your machine.
 
 ## What we publish
 
-Platforms are macOS on Apple Silicon (`macos-arm64`, macOS 13+) and Windows x64 (`windows-x64`); PHP
-also for Linux on x86-64 and arm64 (`linux-x64`, `linux-arm64`: glibc 2.17+, so not Alpine).
+Platforms are macOS on Apple Silicon (`macos-arm64`, macOS 13+), Windows x64 (`windows-x64`) and,
+for some packages so far, Linux on x86-64 and arm64 (`linux-x64`, `linux-arm64`).
 Every package is either **built** here from verified upstream source, or **mirrored**: the
 vendor's own binaries, checked against the vendor's checksum or signature.
 
-| Package | macOS arm64 | Windows x64 | Versions (`versions.json`) |
-|---|---|---|---|
-| `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` (Linux: the same, see below) | mirrored: the official thread-safe build from windows.php.net | macOS 8.1–8.5, Linux 8.2–8.5, Windows 7.4–8.5 |
-| `php-exts` | – | built: extension DLLs for the Windows build (below) | one pack per Windows minor |
-| `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | PHP 8.2–8.5 |
-| `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | 14–18 |
-| `mariadb` | built | mirrored | 10.11, 11.4, 11.8, 12.3 |
-| `mysql` | mirrored | mirrored | 8.0, 8.4, 9.7 |
-| `mongodb` | mirrored | mirrored | 7.0, 8.0, 9.0 |
-| `valkey` | built | built with MSYS2 (`fork()` for persistence) | 9.1 |
-| `redis` | built | – (Valkey only) | 7.2, 7.4, 8.4, 8.10 |
-| `meilisearch` | mirrored (Community Edition) | mirrored (Community Edition) | 1 |
-| `typesense` | mirrored | – (no Windows build upstream) | 29, 30 |
-| `rustfs` | mirrored | mirrored | 1 |
-| `node` | mirrored | mirrored | 16, 18, 20, 22, 24, 26 |
+| Package | macOS arm64 | Windows x64 | Linux x64, arm64 | Versions (`versions.json`) |
+|---|---|---|---|---|
+| `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | built, like macOS (glibc 2.17+, see below) | macOS 8.1–8.5, Linux 8.2–8.5, Windows 7.4–8.5 |
+| `php-exts` | – | built: extension DLLs for the Windows build (below) | – | one pack per Windows minor |
+| `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | – | PHP 8.2–8.5 |
+| `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | – | 14–18 |
+| `mariadb` | built | mirrored | – | 10.11, 11.4, 11.8, 12.3 |
+| `mysql` | mirrored | mirrored | – | 8.0, 8.4, 9.7 |
+| `mongodb` | mirrored | mirrored | – | 7.0, 8.0, 9.0 |
+| `valkey` | built | built with MSYS2 (`fork()` for persistence) | – | 9.1 |
+| `redis` | built | – (Valkey only) | – | 7.2, 7.4, 8.4, 8.10 |
+| `meilisearch` | mirrored (Community Edition) | mirrored (Community Edition) | mirrored (Community Edition) | 1 |
+| `typesense` | mirrored | – (no Windows build upstream) | mirrored | 29, 30 |
+| `rustfs` | mirrored | mirrored | mirrored (static musl build) | 1 |
+| `node` | mirrored | mirrored | mirrored | 16, 18, 20, 22, 24, 26 |
 
 The versions column lists release lines: every day the newest upstream release of each line is
 looked up (`tools/flockrel/upstream.go`, php.net and windows.php.net for PHP) and built or mirrored
@@ -42,7 +42,7 @@ loads the shared extensions in `ext/`. Before publishing, `scripts/verify-linux.
 binary needs a newer glibc or another shared library, and the smoke test runs again in a `centos:7`
 container. Linux starts at PHP 8.2: 8.1 had reached its end of life, and its headers need
 `_GNU_SOURCE`, which the mongodb extension's `-std=c17` build doesn't get from 8.1's `php_config.h`.
-FrankenPHP and the services aren't built for Linux yet.
+FrankenPHP isn't built for Linux yet.
 
 ### PHP release candidates
 
@@ -175,7 +175,7 @@ Every published build is in one of three channels, and each channel has its own 
 listing the builds at its level or above:
 
 | Channel | Manifest | Who | Contains |
-|---|---|---|---|
+|---|---|---|---|---|
 | stable | `manifest.json` | every Flock installation | what has been promoted |
 | beta | `manifest-beta.json` | opt-in in Flock | stable, patches in their waiting time, approved new lines, pre-releases |
 | experimental | `manifest-experimental.json` | testing before promotion | everything published |
