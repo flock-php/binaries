@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Smoke-tests a macOS PHP or FrankenPHP package directory against php.macos in versions.json:
-# every compiled-in extension loaded, every shared extension in ext/ built and loading.
+# Smoke-tests a macOS or Linux PHP package directory, or a macOS FrankenPHP one, against php.macos in
+# versions.json (or the lists in STATIC_EXTS and SHARED_EXTS, which the Linux workflow takes from
+# php.linux): every compiled-in extension loaded, every shared extension in ext/ built and loading.
 # Usage: scripts/smoke-php-package.sh <php|frankenphp> <dir>
 set -euo pipefail
 PKG="${1:?usage: smoke-php-package.sh <php|frankenphp> <dir>}"

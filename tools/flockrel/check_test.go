@@ -28,6 +28,7 @@ func TestCheck(t *testing.T) {
 	var v versions
 	if err := json.Unmarshal([]byte(`{
 	  "php": {"macos": {"minors": ["8.4", "8.5"], "spc": "2.8.5"},
+	          "linux": {"minors": ["8.4", "8.5"], "spc": "2.8.5"},
 	          "windows": {"minors": ["8.1", "8.4", "8.5"], "extensions": {
 	            "from_source": {"igbinary": {"repo": "igbinary/igbinary", "ref": "3.2.16", "refs": {"8.5": "3.2.17RC1"}},
 	                            "apcu": {"repo": "krakjoe/apcu", "ref": "v5.1.28"}},
@@ -65,7 +66,8 @@ func TestCheck(t *testing.T) {
 		},
 		rcs: map[string]string{"8.5.13": "8.5.13RC1", "8.7.0": "8.7.0RC1", "8.6.1": "8.6.1RC1"},
 	}
-	findings, problems := check(&v, "--custom-url=xdebug:https://xdebug.org/files/xdebug-3.5.3.tgz\n--custom-url=opentelemetry:https://pecl.php.net/get/opentelemetry-1.4.2.tgz", src, now)
+	script := "--custom-url=xdebug:https://xdebug.org/files/xdebug-3.5.3.tgz\n--custom-url=opentelemetry:https://pecl.php.net/get/opentelemetry-1.4.2.tgz"
+	findings, problems := check(&v, script, script, src, now)
 	if len(problems) > 0 {
 		t.Errorf("problems: %v", problems)
 	}
@@ -95,7 +97,7 @@ func TestCheck(t *testing.T) {
 		}
 		t.Errorf("%d findings, want %d", len(findings), len(want))
 	}
-	if b := got["New release line: PHP 8.6"].Body; !strings.Contains(b, "`php.macos.minors`, `php.windows.minors` (check that the extensions") || !strings.Contains(b, "`frankenphp.minors`") {
+	if b := got["New release line: PHP 8.6"].Body; !strings.Contains(b, "`php.macos.minors`, `php.linux.minors`, `php.windows.minors` (check that the extensions") || !strings.Contains(b, "`frankenphp.minors`") {
 		t.Errorf("PHP 8.6 body: %s", b)
 	}
 	if b := got["New release line: PHP 8.7"].Body; !strings.Contains(b, "release candidate phase (8.7.0RC1)") || !strings.Contains(b, "beta channel only") {
@@ -110,6 +112,7 @@ func TestCheck(t *testing.T) {
 		"| OpenSSL | 3.5.9 | 3.5.10 |", // the same line, not 4.0
 		"| xdebug (macOS) | 3.5.3 | 3.6.0 |",
 		"| opentelemetry (macOS) | 1.4.2 | 1.5.0 |",
+		"| xdebug (Linux) | 3.5.3 | 3.6.0 |",
 		"| igbinary for PHP 8.5 (Windows) | 3.2.17RC1 | 3.2.17 |",
 		"| igbinary (Windows) | 3.2.16 | 3.2.17 |",
 	} {
