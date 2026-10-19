@@ -32,6 +32,6 @@ jobs:
       - name: Check
         run: |
           go -C tools/flockrel run . check -versions ../../versions.json -php-build ../../packages/php/macos/build.sh \
-            -out "$RUNNER_TEMP/findings.json" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+            -php-build-linux ../../packages/php/linux/build.sh -out "$RUNNER_TEMP/findings.json" 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Issues
         run: bash scripts/upstream-issues.sh "$RUNNER_TEMP/findings.json" | tee -a "$GITHUB_STEP_SUMMARY"

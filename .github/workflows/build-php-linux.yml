@@ -1,0 +1,149 @@
+# Builds one PHP release for Linux (x86-64 or arm64) with static-php-cli in its glibc container,
+# tests it, and publishes it on the php-<version> release as php-<version>-build<N>-<platform>.tar.gz:
+# bin/php and bin/php-fpm with the compiled-in extensions and the shared ones in ext/ from
+# php.linux in versions.json (build number: php.linux.build).
+# Called by release.yml for every version without that build yet; run it by hand to test a build
+# without publishing. Nothing is published unless every check passed, and a published asset is
+# never replaced.
+name: Build PHP Linux
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      platform:
+        type: string
+        required: true
+      publish:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: PHP version (major.minor.patch)
+        required: true
+      platform:
+        description: Platform
+        type: choice
+        options: [linux-x64, linux-arm64]
+      publish:
+        description: Publish the package as a release asset
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  VERSION: ${{ inputs.version }}
+  PLATFORM: ${{ inputs.platform }}
+
+jobs:
+  build:
+    name: build php ${{ inputs.version }} ${{ inputs.platform }}
+    runs-on: ${{ inputs.platform == 'linux-arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 150
+    outputs:
+      asset: ${{ steps.config.outputs.asset }}
+      ok: ${{ steps.done.outputs.ok }}
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read versions.json
+        id: config
+        run: |
+          jq -r '.php.linux | "SPC_VERSION=\(.spc)\nMIN_GLIBC=\(.min_glibc)\nSTATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions)"' versions.json >> "$GITHUB_ENV"
+          echo "MINOR=$(cut -d. -f1-2 <<<"$VERSION")" >> "$GITHUB_ENV"
+          build="$(jq -r .php.linux.build versions.json)"
+          echo "BUILD=$build" >> "$GITHUB_ENV"
+          asset="php-$VERSION-build$build-$PLATFORM.tar.gz"
+          echo "ASSET=$asset" >> "$GITHUB_ENV"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+
+      - name: Install patchelf
+        run: sudo apt-get update -q && sudo apt-get install -yq patchelf
+
+      - name: Cache static-php-cli downloads
+        uses: actions/cache@v6
+        with:
+          path: spc-src/downloads
+          key: spc-linux-downloads-${{ env.SPC_VERSION }}-${{ inputs.platform }}-${{ inputs.version }}-${{ hashFiles('versions.json') }}
+          restore-keys: spc-linux-downloads-${{ env.SPC_VERSION }}-${{ inputs.platform }}-${{ env.MINOR }}
+
+      - name: Build
+        run: bash packages/php/linux/build.sh "$VERSION" out
+
+      - name: Portability (readelf)
+        run: bash scripts/verify-linux.sh out "$MIN_GLIBC" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Every shared extension in versions.json has to build and load for a release.
+      - name: Smoke test
+        run: bash scripts/smoke-php-package.sh php out
+
+      - name: Package
+        run: |
+          jq -n --arg version "$VERSION" --argjson build "$BUILD" --arg platform "$PLATFORM" --arg commit "$GITHUB_SHA" \
+                --arg spc "$SPC_VERSION" --arg min_glibc "$MIN_GLIBC" --arg static "$STATIC_EXTS" --arg shared "$SHARED_EXTS" \
+                --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{package: "php", version: $version, build: $build, platform: $platform, min_glibc: $min_glibc,
+              built: $built, commit: $commit, static_php_cli: $spc,
+              extensions: {compiled_in: ($static | split(",")), shared: ($shared | split(","))}}' \
+            > out/flock-package.json
+          tar -C out -czf "$ASSET" .
+          sha256sum "$ASSET" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ASSET }}
+          path: ${{ env.ASSET }}
+          retention-days: 7
+      - id: done
+        run: echo ok=true >> "$GITHUB_OUTPUT"
+
+  # The oldest glibc the build targets, without anything the runner has installed.
+  portable:
+    name: run php ${{ inputs.version }} ${{ inputs.platform }} on CentOS 7 (glibc 2.17)
+    needs: build
+    if: needs.build.outputs.ok == 'true'
+    runs-on: ${{ inputs.platform == 'linux-arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    outputs:
+      ok: ${{ steps.done.outputs.ok }}
+    env:
+      ASSET: ${{ needs.build.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ASSET }}
+      - name: Read versions.json
+        run: jq -r '.php.linux | "STATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions)"' versions.json >> "$GITHUB_ENV"
+      # In a container: the runner's own glibc and libraries would hide what the package lacks. As
+      # the runner's user, like PHP-FPM on a user's machine (as root it wants a pool user).
+      - name: Smoke test
+        run: |
+          mkdir pkg && tar -C pkg -xzf "$ASSET"
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/w" -w /w -e STATIC_EXTS -e SHARED_EXTS centos:7 \
+            bash scripts/smoke-php-package.sh php pkg
+      - id: done
+        run: echo ok=true >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: [build, portable]
+    if: inputs.publish && needs.portable.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ASSET: ${{ needs.build.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ASSET }}
+      - run: bash scripts/publish.sh php "$VERSION" "$ASSET"

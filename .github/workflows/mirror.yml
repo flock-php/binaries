@@ -35,7 +35,7 @@ on:
       platform:
         description: Platform
         type: choice
-        options: [macos-arm64, windows-x64]
+        options: [macos-arm64, windows-x64, linux-x64, linux-arm64]
       publish:
         description: Publish the package as a release asset
         type: boolean
@@ -52,7 +52,8 @@ env:
 jobs:
   fetch:
     name: fetch ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
-    runs-on: ubuntu-latest
+    # MySQL for Linux is repacked with libraries from an AlmaLinux container of its architecture.
+    runs-on: ${{ inputs.platform == 'linux-arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 30
     outputs:
       asset: ${{ steps.config.outputs.asset }}
@@ -81,12 +82,13 @@ jobs:
           path: |
             ${{ steps.config.outputs.asset }}
             ${{ inputs.package }}-${{ inputs.version }}.json
+            sources/*
           retention-days: 7
 
   test:
     name: run ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
     needs: fetch
-    runs-on: ${{ inputs.platform == 'windows-x64' && 'windows-2022' || 'macos-15' }}
+    runs-on: ${{ fromJSON('{"windows-x64":"windows-2022","linux-x64":"ubuntu-24.04","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] || 'macos-15' }}
     timeout-minutes: 20
     env:
       ASSET: ${{ needs.fetch.outputs.asset }}
@@ -103,7 +105,7 @@ jobs:
         if: runner.os == 'macOS'
         run: sudo mv /opt/homebrew /opt/homebrew.hidden
       - name: Smoke test
-        if: runner.os == 'macOS'
+        if: runner.os != 'Windows'
         run: bash scripts/smoke-service.sh "$PKG" "$ASSET"
       - name: Smoke test
         if: runner.os == 'Windows'
@@ -126,4 +128,5 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: ${{ env.ASSET }}
-      - run: bash scripts/publish.sh "$PKG" "$VERSION" "$ASSET" "$PKG-$VERSION.json"
+      # sources/: what a mirror.sh adds for its license (MySQL for Linux: libaio's and numactl's source).
+      - run: bash scripts/publish.sh "$PKG" "$VERSION" "$ASSET" "$PKG-$VERSION.json" sources/*
