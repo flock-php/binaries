@@ -21,6 +21,15 @@ type versions struct {
 			StaticExtensions string   `json:"static_extensions"`
 			SharedExtensions string   `json:"shared_extensions"`
 		} `json:"macos"`
+		// Linux is built like macOS, in static-php-cli's glibc container, for linux-x64 and linux-arm64.
+		Linux struct {
+			Minors           []string `json:"minors"`
+			Build            int      `json:"build"`
+			SPC              string   `json:"spc"`
+			MinGlibc         string   `json:"min_glibc"`
+			StaticExtensions string   `json:"static_extensions"`
+			SharedExtensions string   `json:"shared_extensions"`
+		} `json:"linux"`
 		// Windows mirrors the official thread-safe x64 builds from windows.php.net.
 		Windows struct {
 			Build  int      `json:"build"`

@@ -8,6 +8,14 @@
       "static_extensions": "bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,igbinary,intl,ldap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,apcu",
       "shared_extensions": "xdebug,imagick,pcov,mongodb,memcached,opentelemetry"
     },
+    "linux": {
+      "minors": ["8.2", "8.3", "8.4", "8.5"],
+      "build": 1,
+      "spc": "2.8.5",
+      "min_glibc": "2.17",
+      "static_extensions": "bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,igbinary,intl,ldap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,apcu",
+      "shared_extensions": "xdebug,imagick,pcov,mongodb,memcached,opentelemetry"
+    },
     "windows": {
       "minors": ["7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"],
       "build": 1,
