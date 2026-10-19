@@ -105,6 +105,13 @@
         "windows-x64": { "how": "mirror", "build": 1 }
       }
     },
+    "cloudflared": {
+      "lines": ["2026"],
+      "platforms": {
+        "macos-arm64": { "how": "mirror", "build": 1 },
+        "windows-x64": { "how": "mirror", "build": 1 }
+      }
+    },
     "node": {
       "lines": ["16", "18", "20", "22", "24", "26"],
       "platforms": {

@@ -130,6 +130,12 @@ case "$PKG" in
     check "stop" stop "$pid"
     ;;
 
+  cloudflared)
+    # Flock needs --allowed-mail (protected quick tunnels): without it a share would be unprotected.
+    check "$("$D/cloudflared" --version 2>&1 | head -1)" "$D/cloudflared" --version
+    check "has --allowed-mail" bash -c '"$1" tunnel --help 2>&1 | grep -q -- --allowed-mail' _ "$D/cloudflared"
+    ;;
+
   node)
     check "node $("$D/bin/node" --version)" "$D/bin/node" -e 'require("crypto").createHash("sha256").update("x").digest("hex")'
     # npm starts with #!/usr/bin/env node: the package's node has to come first on PATH.

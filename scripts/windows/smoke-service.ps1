@@ -150,6 +150,11 @@ switch ($Package) {
         Check 'listens' { Wait-Port 9109 $p "$tmp/err.log" }
         Stop-Server $p
     }
+    'cloudflared' {
+        # Flock needs --allowed-mail (protected quick tunnels): without it a share would be unprotected.
+        Check 'cloudflared' { ((Invoke-Native "$D/cloudflared.exe" @('--version')) -split "`n")[0] }
+        Check 'has --allowed-mail' { if (-not ((Invoke-Native "$D/cloudflared.exe" @('tunnel', '--help')) -match '--allowed-mail')) { throw 'no --allowed-mail' } }
+    }
     'node' {
         Check 'node' { Invoke-Native "$D/node.exe" @('-e', 'console.log(process.version, require(''crypto'').createHash(''sha256'').update(''x'').digest(''hex'').length)') }
         Check 'npm' { Invoke-Native "$D/npm.cmd" @('--version') }

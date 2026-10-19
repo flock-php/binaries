@@ -148,12 +148,13 @@ var lineSources = map[string]struct {
 	"meilisearch": {eol: "meilisearch"},
 	"typesense":   {github: "typesense/typesense"},
 	"rustfs":      {github: "rustfs/rustfs"},
+	"cloudflared": {github: "cloudflare/cloudflared"},
 }
 
 var displayNames = map[string]string{
 	"php": "PHP", "postgres": "PostgreSQL", "mariadb": "MariaDB", "mysql": "MySQL", "mongodb": "MongoDB",
 	"redis": "Redis", "valkey": "Valkey", "node": "Node.js", "meilisearch": "Meilisearch",
-	"typesense": "Typesense", "rustfs": "RustFS",
+	"typesense": "Typesense", "rustfs": "RustFS", "cloudflared": "cloudflared",
 }
 
 // truncate cuts a version to the parts a line has: (1.54, 1) → 1, (8.10.2, 2) → 8.10.
