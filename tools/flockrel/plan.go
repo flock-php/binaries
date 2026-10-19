@@ -178,7 +178,7 @@ func runPlan(args []string) error {
 			fmt.Fprintf(os.Stderr, "::warning::%s\n", msg)
 		}
 		for _, ver := range vers {
-			for _, platform := range []string{"macos-arm64", "windows-x64"} {
+			for _, platform := range platforms {
 				c, ok := p.Platforms[platform]
 				if !ok {
 					continue
