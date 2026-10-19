@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Smoke-tests a service package on macOS the way Flock runs it: unpack (dropping a single
+# Smoke-tests a service package on macOS or Linux the way Flock runs it: unpack (dropping a single
 # top-level folder, as Flock does), initialise a data directory, start on 127.0.0.1, talk to it
 # with its own client, shut down. With SIGNER_MACOS set, the main binary must carry a valid code
-# signature whose authority matches that regex (SIGNER_MACOS in versions.json) (the vendor's, for mirrored packages).
+# signature whose authority matches that regex (SIGNER_MACOS in versions.json) (the vendor's, for mirrored packages);
+# Linux binaries carry none.
 # Usage: scripts/smoke-service.sh <package> <archive>
 set -uo pipefail
 
@@ -34,7 +35,7 @@ entries=("$D"/*)
 if [[ ${#entries[@]} -eq 1 && -d "${entries[0]}" ]]; then D="${entries[0]}"; fi
 echo "### $PKG: $(basename "$ARCHIVE")" | tee -a "$summary"
 
-if [[ -n "${SIGNER_MACOS:-}" ]]; then
+if [[ -n "${SIGNER_MACOS:-}" && "$(uname -s)" == Darwin ]]; then
   case "$PKG" in mysql) main=bin/mysqld ;; mongodb) main=bin/mongod ;; node) main=bin/node ;; *) main="" ;; esac
   if codesign --verify --strict "$D/$main" 2>/dev/null \
      && authority="$(codesign -dvv "$D/$main" 2>&1 | sed -n 's/^Authority=//p' | head -1)" \

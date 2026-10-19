@@ -37,6 +37,7 @@ func TestTagAndAssetNames(t *testing.T) {
 	assets := map[string]parsed{
 		"php-8.4.26-build1-macos-arm64.tar.gz":  {1, "macos-arm64", true},
 		"php-8.4.26-build12-windows-x64.zip":    {12, "windows-x64", true},
+		"php-8.4.26-build3-linux-arm64.tar.gz":  {3, "linux-arm64", true},
 		"php-8.4.26-macos-arm64.tar.gz":         {},
 		"php-8.4.26-build0-macos-arm64.tar.gz":  {},
 		"php-8.4.26-build1-macos-arm64.tar.xz":  {},
