@@ -21,6 +21,15 @@ type versions struct {
 			StaticExtensions string   `json:"static_extensions"`
 			SharedExtensions string   `json:"shared_extensions"`
 		} `json:"macos"`
+		// Linux is built like macOS, in static-php-cli's glibc container, for linux-x64 and linux-arm64.
+		Linux struct {
+			Minors           []string `json:"minors"`
+			Build            int      `json:"build"`
+			SPC              string   `json:"spc"`
+			MinGlibc         string   `json:"min_glibc"`
+			StaticExtensions string   `json:"static_extensions"`
+			SharedExtensions string   `json:"shared_extensions"`
+		} `json:"linux"`
 		// Windows mirrors the official thread-safe x64 builds from windows.php.net.
 		Windows struct {
 			Build  int      `json:"build"`
@@ -76,7 +85,10 @@ type platformConfig struct {
 	Build int    `json:"build"`
 }
 
-var platformExt = map[string]string{"macos-arm64": "tar.gz", "windows-x64": "zip"}
+// platforms are the platforms we publish for, in the order the plan lists them.
+var platforms = []string{"macos-arm64", "windows-x64", "linux-x64", "linux-arm64"}
+
+var platformExt = map[string]string{"macos-arm64": "tar.gz", "windows-x64": "zip", "linux-x64": "tar.gz", "linux-arm64": "tar.gz"}
 
 func loadVersions(path string) (*versions, error) {
 	data, err := os.ReadFile(path)

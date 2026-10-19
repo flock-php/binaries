@@ -8,6 +8,14 @@
       "static_extensions": "bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,igbinary,intl,ldap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,apcu",
       "shared_extensions": "xdebug,imagick,pcov,mongodb,memcached,opentelemetry"
     },
+    "linux": {
+      "minors": ["8.2", "8.3", "8.4", "8.5"],
+      "build": 1,
+      "spc": "2.8.5",
+      "min_glibc": "2.17",
+      "static_extensions": "bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,igbinary,intl,ldap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,apcu",
+      "shared_extensions": "xdebug,imagick,pcov,mongodb,memcached,opentelemetry"
+    },
     "windows": {
       "minors": ["7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"],
       "build": 1,
@@ -37,33 +45,41 @@
       "lines": ["14", "15", "16", "17", "18"],
       "platforms": {
         "macos-arm64": { "how": "build", "build": 1 },
-        "windows-x64": { "how": "build", "build": 1 }
+        "windows-x64": { "how": "build", "build": 1 },
+        "linux-x64": { "how": "build", "build": 1 },
+        "linux-arm64": { "how": "build", "build": 1 }
       },
-      "env": { "OPENSSL_VERSION": "3.5.9", "MIN_OS": "13.0" }
+      "env": { "MIN_GLIBC": "2.28", "OPENSSL_VERSION": "3.5.9", "MIN_OS": "13.0" }
     },
     "mariadb": {
       "lines": ["10.11", "11.4", "11.8", "12.3"],
       "platforms": {
         "macos-arm64": { "how": "build", "build": 1 },
-        "windows-x64": { "how": "mirror", "build": 1 }
+        "windows-x64": { "how": "mirror", "build": 1 },
+        "linux-x64": { "how": "build", "build": 1 },
+        "linux-arm64": { "how": "build", "build": 1 }
       },
-      "env": { "OPENSSL_VERSION": "3.5.9", "MIN_OS": "13.0" },
+      "env": { "MIN_GLIBC": "2.28", "OPENSSL_VERSION": "3.5.9", "MIN_OS": "13.0" },
       "publish_source": true
     },
     "valkey": {
       "lines": ["9.1"],
       "platforms": {
         "macos-arm64": { "how": "build", "build": 1 },
-        "windows-x64": { "how": "build", "build": 1 }
+        "windows-x64": { "how": "build", "build": 1 },
+        "linux-x64": { "how": "build", "build": 1 },
+        "linux-arm64": { "how": "build", "build": 1 }
       },
-      "env": { "MIN_OS": "13.0" }
+      "env": { "MIN_GLIBC": "2.28", "MIN_OS": "13.0" }
     },
     "redis": {
       "lines": ["7.2", "7.4", "8.4", "8.10"],
       "platforms": {
-        "macos-arm64": { "how": "build", "build": 1 }
+        "macos-arm64": { "how": "build", "build": 1 },
+        "linux-x64": { "how": "build", "build": 1 },
+        "linux-arm64": { "how": "build", "build": 1 }
       },
-      "env": { "MIN_OS": "13.0" },
+      "env": { "MIN_GLIBC": "2.28", "MIN_OS": "13.0" },
       "publish_source": true
     },
     "mysql": {
@@ -88,13 +104,17 @@
       "lines": ["1"],
       "platforms": {
         "macos-arm64": { "how": "mirror", "build": 1 },
-        "windows-x64": { "how": "mirror", "build": 1 }
+        "windows-x64": { "how": "mirror", "build": 1 },
+        "linux-x64": { "how": "mirror", "build": 1 },
+        "linux-arm64": { "how": "mirror", "build": 1 }
       }
     },
     "typesense": {
       "lines": ["29", "30"],
       "platforms": {
-        "macos-arm64": { "how": "mirror", "build": 1 }
+        "macos-arm64": { "how": "mirror", "build": 1 },
+        "linux-x64": { "how": "mirror", "build": 1 },
+        "linux-arm64": { "how": "mirror", "build": 1 }
       },
       "publish_source": true
     },
@@ -102,14 +122,18 @@
       "lines": ["1"],
       "platforms": {
         "macos-arm64": { "how": "mirror", "build": 1 },
-        "windows-x64": { "how": "mirror", "build": 1 }
+        "windows-x64": { "how": "mirror", "build": 1 },
+        "linux-x64": { "how": "mirror", "build": 1 },
+        "linux-arm64": { "how": "mirror", "build": 1 }
       }
     },
     "node": {
       "lines": ["16", "18", "20", "22", "24", "26"],
       "platforms": {
         "macos-arm64": { "how": "mirror", "build": 1 },
-        "windows-x64": { "how": "mirror", "build": 1 }
+        "windows-x64": { "how": "mirror", "build": 1 },
+        "linux-x64": { "how": "mirror", "build": 1 },
+        "linux-arm64": { "how": "mirror", "build": 1 }
       },
       "env": { "SIGNER_MACOS": "Node.js|OpenJS", "SIGNER_WINDOWS": "Node.js|OpenJS" }
     }

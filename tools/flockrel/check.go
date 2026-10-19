@@ -22,6 +22,7 @@ func runCheck(args []string) error {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	versionsPath := fs.String("versions", "versions.json", "versions file")
 	buildSh := fs.String("php-build", "packages/php/macos/build.sh", "PHP macOS build script (pins xdebug and opentelemetry)")
+	linuxBuildSh := fs.String("php-build-linux", "packages/php/linux/build.sh", "PHP Linux build script (pins xdebug and opentelemetry)")
 	out := fs.String("out", "findings.json", "where to write the findings")
 	fs.Parse(args)
 
@@ -33,7 +34,11 @@ func runCheck(args []string) error {
 	if err != nil {
 		return err
 	}
-	findings, problems := check(v, string(script), liveSources{}, time.Now().UTC())
+	linuxScript, err := os.ReadFile(*linuxBuildSh)
+	if err != nil {
+		return err
+	}
+	findings, problems := check(v, string(script), string(linuxScript), liveSources{}, time.Now().UTC())
 	for _, p := range problems {
 		fmt.Fprintf(os.Stderr, "::warning::%s\n", p)
 	}
@@ -176,7 +181,7 @@ func newestOf(vs []string) string {
 }
 
 // check returns the findings, and problems (sources that couldn't be read) to warn about.
-func check(v *versions, phpBuildScript string, src sources, now time.Time) (findings []finding, problems []string) {
+func check(v *versions, phpBuildScript, linuxPHPBuildScript string, src sources, now time.Time) (findings []finding, problems []string) {
 	today := now.Format(time.DateOnly)
 
 	// lineFindings reports, for one product, lines newer than the newest a config builds and lines
@@ -281,6 +286,7 @@ func check(v *versions, phpBuildScript string, src sources, now time.Time) (find
 		}
 		lineFindings("PHP", []lineConfig{
 			{"`php.macos.minors`", v.PHP.MacOS.Minors, ""},
+			{"`php.linux.minors`", v.PHP.Linux.Minors, ""},
 			{"`php.windows.minors`", v.PHP.Windows.Minors, " (check that the extensions in `php.windows.extensions` support it)"},
 			{"`frankenphp.minors`", v.FrankenPHP.Minors, ""},
 		}, cycles, upstream, rcs, false, false)
@@ -316,12 +322,20 @@ func check(v *versions, phpBuildScript string, src sources, now time.Time) (find
 		{"FrankenPHP", v.FrankenPHP.Version, "php/frankenphp", "", "`frankenphp.version` (then raise `frankenphp.*.build`)", ""},
 		{"static-php-cli", v.PHP.MacOS.SPC, "crazywhalecc/static-php-cli", "", "`php.macos.spc` (then raise `php.macos.build` and `frankenphp.macos.build`)", ""},
 	}
-	if ossl := opensslPin(v); ossl != "" {
-		pins = append(pins, pin{"OpenSSL", ossl, "openssl/openssl", "openssl-", "`OPENSSL_VERSION` of postgres and mariadb (then raise their macOS `build`)", truncate(ossl, 2)})
+	if v.PHP.Linux.SPC != "" {
+		pins = append(pins, pin{"static-php-cli (Linux)", v.PHP.Linux.SPC, "crazywhalecc/static-php-cli", "", "`php.linux.spc` (then raise `php.linux.build`)", ""})
 	}
-	for _, ext := range []struct{ name, repo string }{{"xdebug", "xdebug/xdebug"}, {"opentelemetry", "open-telemetry/opentelemetry-php-instrumentation"}} {
-		if m := regexp.MustCompile(ext.name + `-([0-9.]+)\.tgz`).FindStringSubmatch(phpBuildScript); m != nil {
-			pins = append(pins, pin{ext.name + " (macOS)", m[1], ext.repo, "", "`packages/php/macos/build.sh` (then raise `php.macos.build` and `frankenphp.macos.build`)", ""})
+	if ossl := opensslPin(v); ossl != "" {
+		pins = append(pins, pin{"OpenSSL", ossl, "openssl/openssl", "openssl-", "`OPENSSL_VERSION` of postgres and mariadb (then raise their macOS and, for postgres, Linux `build`)", truncate(ossl, 2)})
+	}
+	for _, script := range []struct{ platform, dir, text, raise string }{
+		{"macOS", "macos", phpBuildScript, "`php.macos.build` and `frankenphp.macos.build`"},
+		{"Linux", "linux", linuxPHPBuildScript, "`php.linux.build`"},
+	} {
+		for _, ext := range []struct{ name, repo string }{{"xdebug", "xdebug/xdebug"}, {"opentelemetry", "open-telemetry/opentelemetry-php-instrumentation"}} {
+			if m := regexp.MustCompile(ext.name + `-([0-9.]+)\.tgz`).FindStringSubmatch(script.text); m != nil {
+				pins = append(pins, pin{ext.name + " (" + script.platform + ")", m[1], ext.repo, "", "`packages/php/" + script.dir + "/build.sh` (then raise " + script.raise + ")", ""})
+			}
 		}
 	}
 	exts := v.PHP.Windows.Extensions

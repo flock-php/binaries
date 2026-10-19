@@ -7,30 +7,54 @@ signed manifest, so nothing has to be compiled on your machine.
 
 ## What we publish
 
-Platforms are macOS on Apple Silicon (`macos-arm64`, macOS 13+) and Windows x64 (`windows-x64`).
+Platforms are macOS on Apple Silicon (`macos-arm64`, macOS 13+), Windows x64 (`windows-x64`) and,
+for some packages so far, Linux on x86-64 and arm64 (`linux-x64`, `linux-arm64`).
 Every package is either **built** here from verified upstream source, or **mirrored**: the
 vendor's own binaries, checked against the vendor's checksum or signature.
 
-| Package | macOS arm64 | Windows x64 | Versions (`versions.json`) |
-|---|---|---|---|
-| `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | macOS 8.1–8.5, Windows 7.4–8.5 |
-| `php-exts` | – | built: extension DLLs for the Windows build (below) | one pack per Windows minor |
-| `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | PHP 8.2–8.5 |
-| `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | 14–18 |
-| `mariadb` | built | mirrored | 10.11, 11.4, 11.8, 12.3 |
-| `mysql` | mirrored | mirrored | 8.0, 8.4, 9.7 |
-| `mongodb` | mirrored | mirrored | 7.0, 8.0, 9.0 |
-| `valkey` | built | built with MSYS2 (`fork()` for persistence) | 9.1 |
-| `redis` | built | – (Valkey only) | 7.2, 7.4, 8.4, 8.10 |
-| `meilisearch` | mirrored (Community Edition) | mirrored (Community Edition) | 1 |
-| `typesense` | mirrored | – (no Windows build upstream) | 29, 30 |
-| `rustfs` | mirrored | mirrored | 1 |
-| `node` | mirrored | mirrored | 16, 18, 20, 22, 24, 26 |
+| Package | macOS arm64 | Windows x64 | Linux x64, arm64 | Versions (`versions.json`) |
+|---|---|---|---|---|
+| `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | built, like macOS (glibc 2.17+, see below) | macOS 8.1–8.5, Linux 8.2–8.5, Windows 7.4–8.5 |
+| `php-exts` | – | built: extension DLLs for the Windows build (below) | – | one pack per Windows minor |
+| `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | – | PHP 8.2–8.5 |
+| `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | built (glibc 2.28+, see below) | 14–18 |
+| `mariadb` | built | mirrored | built (glibc 2.28+) | 10.11, 11.4, 11.8, 12.3 |
+| `mysql` | mirrored | mirrored | – | 8.0, 8.4, 9.7 |
+| `mongodb` | mirrored | mirrored | – | 7.0, 8.0, 9.0 |
+| `valkey` | built | built with MSYS2 (`fork()` for persistence) | built (glibc 2.28+) | 9.1 |
+| `redis` | built | – (Valkey only) | built (glibc 2.28+) | 7.2, 7.4, 8.4, 8.10 |
+| `meilisearch` | mirrored (Community Edition) | mirrored (Community Edition) | mirrored (Community Edition) | 1 |
+| `typesense` | mirrored | – (no Windows build upstream) | mirrored | 29, 30 |
+| `rustfs` | mirrored | mirrored | mirrored (static musl build) | 1 |
+| `node` | mirrored | mirrored | mirrored | 16, 18, 20, 22, 24, 26 |
 
 The versions column lists release lines: every day the newest upstream release of each line is
 looked up (`tools/flockrel/upstream.go`, php.net and windows.php.net for PHP) and built or mirrored
 when it isn't published yet. Patch releases come in on their own; a new line (PostgreSQL 19, Node.js
 28, PHP 8.6) is one entry in `versions.json`.
+
+### PHP for Linux
+
+`php` for `linux-x64` and `linux-arm64` is built like the macOS one, with static-php-cli and the
+same extensions (`php.linux`), but in static-php-cli's glibc container (`bin/spc-gnu-docker`: CentOS
+7, glibc 2.17). Every library but glibc's is compiled in, and unlike a fully static musl build, PHP
+loads the shared extensions in `ext/`. Before publishing, `scripts/verify-linux.sh` checks that no
+binary needs a newer glibc or another shared library, and the smoke test runs again in a `centos:7`
+container. Linux starts at PHP 8.2: 8.1 had reached its end of life, and its headers need
+`_GNU_SOURCE`, which the mongodb extension's `-std=c17` build doesn't get from 8.1's `php_config.h`.
+FrankenPHP isn't built for Linux yet.
+
+### Services for Linux
+
+PostgreSQL, MariaDB, Valkey and Redis for Linux are built in the `manylinux_2_28` container (AlmaLinux 8,
+the image Python wheels are built in), so they need glibc 2.28 (2018: Debian 10, Ubuntu 20.04, RHEL
+8 and later). Valkey and Redis need nothing but glibc. PostgreSQL links OpenSSL statically, as on
+macOS, and `scripts/linux/bundle.sh` copies the other libraries it needs (zlib, libuuid, libedit for
+psql) to `lib/`, with their licenses, and points every binary there with an `$ORIGIN` RUNPATH, the
+Linux counterpart of `scripts/macos/relocate.sh`. MariaDB is configured as on macOS and bundles
+libedit and ncurses for its client; it is built without libaio (InnoDB then does its I/O with its
+own threads), whose library Ubuntu 24.04 renamed. `scripts/verify-linux.sh` checks that every
+library comes from glibc or the package, and the smoke test runs in an `almalinux:8` container.
 
 ### PHP release candidates
 
@@ -75,19 +99,19 @@ read its configure option from, so `--enable-opentelemetry` is passed explicitly
 
 ### Package layouts
 
-Archives are `.tar.gz` on macOS and `.zip` on Windows. Mirrored packages keep the vendor's layout,
+Archives are `.tar.gz` on macOS and Linux and `.zip` on Windows. Mirrored packages keep the vendor's layout,
 usually one top-level folder (`mysql-8.4.11-macos15-arm64/bin/mysqld`); unpack and drop it. What we
 build has `flock-package.json` at the top (what it is, how it was built) and `LICENSES/`.
 
 | Package | Layout |
 |---|---|
-| `php` (macOS) | `bin/php`, `bin/php-fpm`, `ext/*.so` |
+| `php` (macOS, Linux) | `bin/php`, `bin/php-fpm`, `ext/*.so` |
 | `php` (Windows) | the official zip: `php.exe`, `php-cgi.exe`, `ext/` |
 | `php-exts` | `ext/php_<name>.dll` into PHP's `ext\`; `*.dll` next to `php.exe` (ImageMagick) |
 | `frankenphp` (macOS) | `bin/frankenphp`, `ext/*.so` |
 | `frankenphp` (Windows) | `frankenphp.exe` next to the official PHP build of the same version |
-| `postgres` | `bin/`, `lib/`, `share/` (relocatable) |
-| `mariadb` (macOS) | `bin/`, `scripts/mariadb-install-db`, `share/`, `lib/plugin/`; run with `--basedir` |
+| `postgres` | `bin/`, `lib/`, `share/` (relocatable; on Linux `lib/` also has the bundled libraries) |
+| `mariadb` (macOS, Linux) | `bin/`, `scripts/mariadb-install-db`, `share/`, `lib/plugin/` (Linux: also the bundled libraries in `lib/`); run with `--basedir` |
 | `valkey`, `redis` | `<name>-server`, `<name>-cli`, `<name>-benchmark` (Windows: with the MSYS2 DLLs) |
 | `meilisearch`, `rustfs`, `typesense` | the executable and its license |
 
@@ -126,9 +150,10 @@ the same version.
 | `promote.yml` | records a channel decision (promote, hold, yank) in `channels.json` |
 | `check.yml` | weekly: new release lines, end of life, newer pinned versions as issues |
 | `build-php-macos.yml` | `php` and `frankenphp` for macOS (static-php-cli) |
+| `build-php-linux.yml` | `php` for Linux (static-php-cli, glibc container) |
 | `build-php-exts-windows.yml` | `php-exts` for one PHP minor |
 | `build-frankenphp-windows.yml` | `frankenphp` for Windows |
-| `build-service.yml` | PostgreSQL, MariaDB (macOS), Valkey, Redis from source |
+| `build-service.yml` | PostgreSQL, MariaDB (macOS, Linux), Valkey, Redis from source (Linux: in `manylinux_2_28`) |
 | `mirror.yml` | everything mirrored, including PHP for Windows |
 
 ### Licenses and sources
@@ -162,7 +187,7 @@ Every published build is in one of three channels, and each channel has its own 
 listing the builds at its level or above:
 
 | Channel | Manifest | Who | Contains |
-|---|---|---|---|
+|---|---|---|---|---|
 | stable | `manifest.json` | every Flock installation | what has been promoted |
 | beta | `manifest-beta.json` | opt-in in Flock | stable, patches in their waiting time, approved new lines, pre-releases |
 | experimental | `manifest-experimental.json` | testing before promotion | everything published |
@@ -263,10 +288,12 @@ packages/<name>/mirror.sh        download + verify a vendor release (mirrored pa
 packages/<name>/source.sh        download + verify the upstream source (builds, and published for copyleft)
 scripts/lib.sh                   download and checksum helpers for the package scripts
 scripts/macos/                   static OpenSSL build, relocation of macOS installs (@loader_path)
+scripts/linux/                   static OpenSSL build, bundling of libraries into Linux installs ($ORIGIN)
 scripts/windows/                 php-windows-builder setup, extension packs, Windows smoke tests
 scripts/publish.sh               upload a package (and its sources) to its release
 scripts/ready-issue.sh           keep the Ready for testing issue up to date
 scripts/upstream-issues.sh       turn the weekly check's findings into issues
 scripts/verify-macos.sh          fails when a Mach-O file links outside macOS or targets macOS > 13
+scripts/verify-linux.sh          fails when an ELF file needs a library from outside glibc and the package, or a newer glibc
 scripts/smoke-*.sh               smoke tests run against every package before it is published
 ```
