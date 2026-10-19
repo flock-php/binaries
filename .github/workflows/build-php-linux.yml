@@ -1,7 +1,10 @@
 # Builds one PHP release for Linux (x86-64 or arm64) with static-php-cli in its glibc container,
-# tests it, and publishes it on the php-<version> release as php-<version>-build<N>-<platform>.tar.gz:
-# bin/php and bin/php-fpm with the compiled-in extensions and the shared ones in ext/ from
-# php.linux in versions.json (build number: php.linux.build).
+# tests it, and publishes it on the <package>-<version> release as
+# <package>-<version>-build<N>-<platform>.tar.gz:
+#   php         bin/php and bin/php-fpm (build number: php.linux.build)
+#   frankenphp  bin/frankenphp with the same PHP embedded, thread-safe (frankenphp.linux.build,
+#               FrankenPHP release: frankenphp.version)
+# Both get the compiled-in extensions and the shared ones in ext/ from php.linux in versions.json.
 # Called by release.yml for every version without that build yet; run it by hand to test a build
 # without publishing. Nothing is published unless every check passed, and a published asset is
 # never replaced.
@@ -13,10 +16,17 @@ on:
       version:
         type: string
         required: true
+      package:
+        type: string
+        default: php
       platform:
         type: string
         required: true
       publish:
+        type: boolean
+        default: false
+      # FrankenPHP on a PHP release candidate: a failure is a warning (release.yml tries again the next day).
+      optional:
         type: boolean
         default: false
   workflow_dispatch:
@@ -24,6 +34,10 @@ on:
       version:
         description: PHP version (major.minor.patch)
         required: true
+      package:
+        description: What to build
+        type: choice
+        options: [php, frankenphp]
       platform:
         description: Platform
         type: choice
@@ -38,13 +52,15 @@ permissions:
 
 env:
   VERSION: ${{ inputs.version }}
+  PKG: ${{ inputs.package }}
   PLATFORM: ${{ inputs.platform }}
 
 jobs:
   build:
-    name: build php ${{ inputs.version }} ${{ inputs.platform }}
+    name: build ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
     runs-on: ${{ inputs.platform == 'linux-arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 150
+    continue-on-error: ${{ inputs.optional == true }}
     outputs:
       asset: ${{ steps.config.outputs.asset }}
       ok: ${{ steps.done.outputs.ok }}
@@ -58,9 +74,16 @@ jobs:
         run: |
           jq -r '.php.linux | "SPC_VERSION=\(.spc)\nMIN_GLIBC=\(.min_glibc)\nSTATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions)"' versions.json >> "$GITHUB_ENV"
           echo "MINOR=$(cut -d. -f1-2 <<<"$VERSION")" >> "$GITHUB_ENV"
-          build="$(jq -r .php.linux.build versions.json)"
+          case "$PKG" in
+            php) build="$(jq -r .php.linux.build versions.json)" ;;
+            frankenphp)
+              build="$(jq -r .frankenphp.linux.build versions.json)"
+              echo "TARGET=frankenphp" >> "$GITHUB_ENV"
+              echo "FRANKENPHP_VERSION=$(jq -r .frankenphp.version versions.json)" >> "$GITHUB_ENV" ;;
+            *) echo "::error::unknown package $PKG"; exit 1 ;;
+          esac
           echo "BUILD=$build" >> "$GITHUB_ENV"
-          asset="php-$VERSION-build$build-$PLATFORM.tar.gz"
+          asset="$PKG-$VERSION-build$build-$PLATFORM.tar.gz"
           echo "ASSET=$asset" >> "$GITHUB_ENV"
           echo "asset=$asset" >> "$GITHUB_OUTPUT"
 
@@ -71,7 +94,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: spc-src/downloads
-          key: spc-linux-downloads-${{ env.SPC_VERSION }}-${{ inputs.platform }}-${{ inputs.version }}-${{ hashFiles('versions.json') }}
+          key: spc-linux-downloads-${{ env.SPC_VERSION }}-${{ inputs.platform }}-${{ inputs.package }}-${{ inputs.version }}-${{ hashFiles('versions.json') }}
           restore-keys: spc-linux-downloads-${{ env.SPC_VERSION }}-${{ inputs.platform }}-${{ env.MINOR }}
 
       - name: Build
@@ -82,16 +105,17 @@ jobs:
 
       # Every shared extension in versions.json has to build and load for a release.
       - name: Smoke test
-        run: bash scripts/smoke-php-package.sh php out
+        run: bash scripts/smoke-php-package.sh "$PKG" out
 
       - name: Package
         run: |
-          jq -n --arg version "$VERSION" --argjson build "$BUILD" --arg platform "$PLATFORM" --arg commit "$GITHUB_SHA" \
+          jq -n --arg package "$PKG" --arg version "$VERSION" --argjson build "$BUILD" --arg platform "$PLATFORM" --arg commit "$GITHUB_SHA" \
                 --arg spc "$SPC_VERSION" --arg min_glibc "$MIN_GLIBC" --arg static "$STATIC_EXTS" --arg shared "$SHARED_EXTS" \
-                --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{package: "php", version: $version, build: $build, platform: $platform, min_glibc: $min_glibc,
+                --arg frankenphp "${FRANKENPHP_VERSION:-}" --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{package: $package, version: $version, build: $build, platform: $platform, min_glibc: $min_glibc,
               built: $built, commit: $commit, static_php_cli: $spc,
-              extensions: {compiled_in: ($static | split(",")), shared: ($shared | split(","))}}' \
+              extensions: {compiled_in: ($static | split(",")), shared: ($shared | split(","))}}
+             + (if $frankenphp != "" then {frankenphp: $frankenphp} else {} end)' \
             > out/flock-package.json
           tar -C out -czf "$ASSET" .
           sha256sum "$ASSET" | tee -a "$GITHUB_STEP_SUMMARY"
@@ -103,13 +127,16 @@ jobs:
           retention-days: 7
       - id: done
         run: echo ok=true >> "$GITHUB_OUTPUT"
+      - if: failure() && inputs.optional
+        run: echo "::warning::$PKG for PHP $VERSION (a release candidate) didn't build; the next release run tries again"
 
   # The oldest glibc the build targets, without anything the runner has installed.
   portable:
-    name: run php ${{ inputs.version }} ${{ inputs.platform }} on CentOS 7 (glibc 2.17)
+    name: run ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }} on CentOS 7 (glibc 2.17)
     needs: build
     if: needs.build.outputs.ok == 'true'
     runs-on: ${{ inputs.platform == 'linux-arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    continue-on-error: ${{ inputs.optional == true }}
     outputs:
       ok: ${{ steps.done.outputs.ok }}
     env:
@@ -126,8 +153,8 @@ jobs:
       - name: Smoke test
         run: |
           mkdir pkg && tar -C pkg -xzf "$ASSET"
-          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/w" -w /w -e STATIC_EXTS -e SHARED_EXTS centos:7 \
-            bash scripts/smoke-php-package.sh php pkg
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/w" -w /w -e STATIC_EXTS -e SHARED_EXTS -e VERSION centos:7 \
+            bash scripts/smoke-php-package.sh "$PKG" pkg
       - id: done
         run: echo ok=true >> "$GITHUB_OUTPUT"
 
@@ -146,4 +173,4 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: ${{ env.ASSET }}
-      - run: bash scripts/publish.sh php "$VERSION" "$ASSET"
+      - run: bash scripts/publish.sh "$PKG" "$VERSION" "$ASSET"

@@ -38,7 +38,8 @@
     "version": "1.13.0",
     "minors": ["8.2", "8.3", "8.4", "8.5"],
     "macos": { "build": 2 },
-    "windows": { "build": 1 }
+    "windows": { "build": 1 },
+    "linux": { "build": 1 }
   },
   "packages": {
     "postgres": {

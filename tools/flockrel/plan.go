@@ -22,7 +22,7 @@ type build struct {
 // runPlan prints, and writes to $GITHUB_OUTPUT, the builds whose release asset doesn't exist yet:
 //
 //	php_macos=[{"package":"php","version":"8.4.26","platform":"macos-arm64","build":1}, ...]   (php and frankenphp)
-//	php_linux=[{"package":"php","version":"8.4.26","platform":"linux-arm64","build":1}, ...]
+//	php_linux=[{"package":"php","version":"8.4.26","platform":"linux-arm64","build":1}, ...]   (php and frankenphp)
 //	php_exts_windows=[{"package":"php-exts","version":"8.4","platform":"windows-x64","build":1}, ...]
 //	frankenphp_windows=[{"package":"frankenphp","version":"8.4.26","platform":"windows-x64","build":1}, ...]
 //	builds=[{"package":"postgres","version":"18.6","platform":"windows-x64","build":1}, ...]
@@ -170,7 +170,7 @@ func runPlan(args []string) error {
 		}
 	}
 
-	// FrankenPHP embeds PHP, so it is built per PHP version on both platforms.
+	// FrankenPHP embeds PHP, so it is built per PHP version on every platform.
 	if selected("frankenphp") && *only == "" {
 		for _, minor := range v.FrankenPHP.Minors {
 			latest, err := phpNetVersion(minor)
@@ -179,6 +179,11 @@ func runPlan(args []string) error {
 			}
 			if b := (build{Package: "frankenphp", Version: latest, Platform: "macos-arm64", Build: v.FrankenPHP.MacOS.Build, Optional: newMinorRC.MatchString(latest)}); needed(b) {
 				phpMacOS = append(phpMacOS, b)
+			}
+			for _, platform := range []string{"linux-x64", "linux-arm64"} {
+				if b := (build{Package: "frankenphp", Version: latest, Platform: platform, Build: v.FrankenPHP.Linux.Build, Optional: newMinorRC.MatchString(latest)}); needed(b) {
+					phpLinux = append(phpLinux, b)
+				}
 			}
 			if ver, ok := windowsVersion(minor); ok {
 				if b := (build{Package: "frankenphp", Version: ver, Platform: "windows-x64", Build: v.FrankenPHP.Windows.Build, Optional: newMinorRC.MatchString(ver)}); needed(b) {

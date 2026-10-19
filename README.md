@@ -16,7 +16,7 @@ vendor's own binaries, checked against the vendor's checksum or signature.
 |---|---|---|---|---|
 | `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | built, like macOS (glibc 2.17+, see below) | macOS 8.1–8.5, Linux 8.2–8.5, Windows 7.4–8.5 |
 | `php-exts` | – | built: extension DLLs for the Windows build (below) | – | one pack per Windows minor |
-| `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | – | PHP 8.2–8.5 |
+| `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | built, like macOS | PHP 8.2–8.5 |
 | `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | – | 14–18 |
 | `mariadb` | built | mirrored | – | 10.11, 11.4, 11.8, 12.3 |
 | `mysql` | mirrored | mirrored | – | 8.0, 8.4, 9.7 |
@@ -42,7 +42,8 @@ loads the shared extensions in `ext/`. Before publishing, `scripts/verify-linux.
 binary needs a newer glibc or another shared library, and the smoke test runs again in a `centos:7`
 container. Linux starts at PHP 8.2: 8.1 had reached its end of life, and its headers need
 `_GNU_SOURCE`, which the mongodb extension's `-std=c17` build doesn't get from 8.1's `php_config.h`.
-FrankenPHP isn't built for Linux yet.
+FrankenPHP is built the same way, thread-safe with PHP embedded (`TARGET=frankenphp`,
+`frankenphp.linux.build`).
 
 ### PHP release candidates
 
@@ -96,7 +97,7 @@ build has `flock-package.json` at the top (what it is, how it was built) and `LI
 | `php` (macOS, Linux) | `bin/php`, `bin/php-fpm`, `ext/*.so` |
 | `php` (Windows) | the official zip: `php.exe`, `php-cgi.exe`, `ext/` |
 | `php-exts` | `ext/php_<name>.dll` into PHP's `ext\`; `*.dll` next to `php.exe` (ImageMagick) |
-| `frankenphp` (macOS) | `bin/frankenphp`, `ext/*.so` |
+| `frankenphp` (macOS, Linux) | `bin/frankenphp`, `ext/*.so` |
 | `frankenphp` (Windows) | `frankenphp.exe` next to the official PHP build of the same version |
 | `postgres` | `bin/`, `lib/`, `share/` (relocatable) |
 | `mariadb` (macOS) | `bin/`, `scripts/mariadb-install-db`, `share/`, `lib/plugin/`; run with `--basedir` |
@@ -138,7 +139,7 @@ the same version.
 | `promote.yml` | records a channel decision (promote, hold, yank) in `channels.json` |
 | `check.yml` | weekly: new release lines, end of life, newer pinned versions as issues |
 | `build-php-macos.yml` | `php` and `frankenphp` for macOS (static-php-cli) |
-| `build-php-linux.yml` | `php` for Linux (static-php-cli, glibc container) |
+| `build-php-linux.yml` | `php` and `frankenphp` for Linux (static-php-cli, glibc container) |
 | `build-php-exts-windows.yml` | `php-exts` for one PHP minor |
 | `build-frankenphp-windows.yml` | `frankenphp` for Windows |
 | `build-service.yml` | PostgreSQL, MariaDB (macOS), Valkey, Redis from source |

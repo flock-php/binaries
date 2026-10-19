@@ -3,7 +3,7 @@
 # Flock downloads https://github.com/<repo>/releases/download/manifest/manifest.json (+ .sig), or
 # manifest-beta.json / manifest-experimental.json for those channels.
 #   php-macos  PHP and FrankenPHP for macOS (build-php-macos.yml)
-#   php-linux  PHP for Linux, x86-64 and arm64 (build-php-linux.yml)
+#   php-linux  PHP and FrankenPHP for Linux, x86-64 and arm64 (build-php-linux.yml)
 #   php-exts-windows    extension packs for Windows PHP, one per minor (build-php-exts-windows.yml)
 #   frankenphp-windows  FrankenPHP for Windows (build-frankenphp-windows.yml)
 #   builds     services built from source: PostgreSQL, MariaDB (macOS), Valkey, Redis (build-service.yml)
@@ -81,8 +81,10 @@ jobs:
     uses: ./.github/workflows/build-php-linux.yml
     with:
       version: ${{ matrix.version }}
+      package: ${{ matrix.package }}
       platform: ${{ matrix.platform }}
       publish: true
+      optional: ${{ matrix.optional == true }}
 
   php-exts-windows:
     needs: plan

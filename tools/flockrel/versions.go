@@ -58,6 +58,9 @@ type versions struct {
 		Windows struct {
 			Build int `json:"build"`
 		} `json:"windows"`
+		Linux struct {
+			Build int `json:"build"`
+		} `json:"linux"`
 	} `json:"frankenphp"`
 	// Packages are the services next to PHP: for each release line, the newest upstream
 	// version is built from source or mirrored, per platform.
