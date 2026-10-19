@@ -1,6 +1,7 @@
 # Builds one release of a service (PostgreSQL, MariaDB, Valkey, Redis) from source for one
-# platform with packages/<package>/<os>/build.*, checks it (portability on macOS), smoke-tests it
-# on a clean runner, and publishes it as <package>-<version>-build<N>-<platform>.<ext> on the
+# platform with packages/<package>/<os>/build.* (Linux: in the manylinux_2_28 container, glibc
+# 2.28), checks it (portability on macOS and Linux), smoke-tests it on a clean runner (Linux: an
+# almalinux:8 container), and publishes it as <package>-<version>-build<N>-<platform>.<ext> on the
 # <package>-<version> release, next to the upstream source when the license asks for it.
 # Called by release.yml for every version without that build yet; run it by hand to test.
 # Nothing is published unless every check passed, and a published asset is never replaced.
@@ -32,7 +33,7 @@ on:
       platform:
         description: Platform
         type: choice
-        options: [macos-arm64, windows-x64]
+        options: [macos-arm64, windows-x64, linux-x64, linux-arm64]
       publish:
         description: Publish the package as a release asset
         type: boolean
@@ -49,7 +50,7 @@ env:
 jobs:
   build:
     name: build ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
-    runs-on: ${{ inputs.platform == 'windows-x64' && 'windows-2022' || 'macos-15' }}
+    runs-on: ${{ fromJSON('{"windows-x64":"windows-2022","linux-x64":"ubuntu-24.04","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] || 'macos-15' }}
     timeout-minutes: 180
     outputs:
       asset: ${{ steps.config.outputs.asset }}
@@ -84,6 +85,27 @@ jobs:
       - name: Portability (otool)
         if: runner.os == 'macOS'
         run: bash scripts/verify-macos.sh out "$MIN_OS" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Linux: the static OpenSSL only changes with its version.
+      - name: Cache OpenSSL
+        if: runner.os == 'Linux' && env.OPENSSL_VERSION != ''
+        uses: actions/cache@v6
+        with:
+          path: ${{ inputs.package }}-work/openssl
+          key: openssl-${{ env.OPENSSL_VERSION }}-${{ inputs.platform }}-manylinux_2_28-no-dso
+
+      # Linux: in the manylinux_2_28 container (AlmaLinux 8), so the binaries run on glibc 2.28+.
+      - name: Build
+        if: runner.os == 'Linux'
+        run: |
+          arch=x86_64; [[ "$PLATFORM" == linux-arm64 ]] && arch=aarch64
+          docker run --rm -v "$PWD:/w" -w /w -e OPENSSL_VERSION -e GITHUB_TOKEN \
+            "quay.io/pypa/manylinux_2_28_$arch" bash "packages/$PKG/linux/build.sh" "$VERSION" out
+          sudo chown -R "$(id -u):$(id -g)" .
+
+      - name: Portability (readelf)
+        if: runner.os == 'Linux'
+        run: bash scripts/verify-linux.sh out "$MIN_GLIBC" | tee -a "$GITHUB_STEP_SUMMARY"
 
       # Windows Valkey: MSYS2 provides fork() (packages/valkey/windows/build.sh).
       - uses: msys2/setup-msys2@v2
@@ -156,11 +178,12 @@ jobs:
           retention-days: 7
 
   # A clean runner: on macOS the oldest Apple Silicon image with Homebrew moved away (closest to
-  # a user's Mac); on Windows without MSYS2 runtimes on PATH, so only the bundled DLLs are used.
+  # a user's Mac); on Windows without MSYS2 runtimes on PATH, so only the bundled DLLs are used;
+  # on Linux an almalinux:8 container (the oldest glibc the build targets, nothing installed).
   test:
     name: run ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
     needs: build
-    runs-on: ${{ inputs.platform == 'windows-x64' && 'windows-2022' || 'macos-14' }}
+    runs-on: ${{ fromJSON('{"windows-x64":"windows-2022","linux-x64":"ubuntu-24.04","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] || 'macos-14' }}
     timeout-minutes: 20
     env:
       ASSET: ${{ needs.build.outputs.asset }}
@@ -175,6 +198,13 @@ jobs:
       - name: Smoke test
         if: runner.os == 'macOS'
         run: bash scripts/smoke-service.sh "$PKG" "$ASSET"
+      # As the runner's user, known to the container (initdb looks it up): PostgreSQL refuses root.
+      - name: Smoke test
+        if: runner.os == 'Linux'
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro \
+            -v "$PWD:/w" -w /w almalinux:8 \
+            bash scripts/smoke-service.sh "$PKG" "$ASSET"
       - name: Remove other MSYS runtimes from PATH
         if: runner.os == 'Windows'
         shell: pwsh

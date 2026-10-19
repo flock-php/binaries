@@ -326,7 +326,7 @@ func check(v *versions, phpBuildScript, linuxPHPBuildScript string, src sources,
 		pins = append(pins, pin{"static-php-cli (Linux)", v.PHP.Linux.SPC, "crazywhalecc/static-php-cli", "", "`php.linux.spc` (then raise `php.linux.build`)", ""})
 	}
 	if ossl := opensslPin(v); ossl != "" {
-		pins = append(pins, pin{"OpenSSL", ossl, "openssl/openssl", "openssl-", "`OPENSSL_VERSION` of postgres and mariadb (then raise their macOS `build`)", truncate(ossl, 2)})
+		pins = append(pins, pin{"OpenSSL", ossl, "openssl/openssl", "openssl-", "`OPENSSL_VERSION` of postgres and mariadb (then raise their macOS and, for postgres, Linux `build`)", truncate(ossl, 2)})
 	}
 	for _, script := range []struct{ platform, dir, text, raise string }{
 		{"macOS", "macos", phpBuildScript, "`php.macos.build` and `frankenphp.macos.build`"},

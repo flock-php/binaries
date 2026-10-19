@@ -1,14 +1,20 @@
 # Shared helpers for the package scripts (source.sh, mirror.sh, build.sh). Source it:
 #   . "$(dirname "$0")/../../scripts/lib.sh"
 
+# --retry-all-errors needs curl 7.71; the Linux build container (AlmaLinux 8) has 7.61.
+retry_all=--retry-all-errors
+curl --help all 2>/dev/null | grep -q -- --retry-all-errors || retry_all=
+
 # fetch <url> <file>: downloads with retries, failing on HTTP errors.
 fetch() {
-  curl -fsSL --retry 3 --retry-all-errors -o "$2" "$1"
+  # shellcheck disable=SC2086
+  curl -fsSL --retry 3 $retry_all -o "$2" "$1"
 }
 
 # fetch_text <url>: prints a small file (checksum lists, API answers).
 fetch_text() {
-  curl -fsSL --retry 3 --retry-all-errors "$1"
+  # shellcheck disable=SC2086
+  curl -fsSL --retry 3 $retry_all "$1"
 }
 
 # Read from stdin: with a file name, Git Bash's sha256sum escapes Windows paths ("<hash>").

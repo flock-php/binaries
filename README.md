@@ -17,12 +17,12 @@ vendor's own binaries, checked against the vendor's checksum or signature.
 | `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | built, like macOS (glibc 2.17+, see below) | macOS 8.1–8.5, Linux 8.2–8.5, Windows 7.4–8.5 |
 | `php-exts` | – | built: extension DLLs for the Windows build (below) | – | one pack per Windows minor |
 | `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | – | PHP 8.2–8.5 |
-| `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | – | 14–18 |
+| `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | built (glibc 2.28+, see below) | 14–18 |
 | `mariadb` | built | mirrored | – | 10.11, 11.4, 11.8, 12.3 |
 | `mysql` | mirrored | mirrored | – | 8.0, 8.4, 9.7 |
 | `mongodb` | mirrored | mirrored | – | 7.0, 8.0, 9.0 |
-| `valkey` | built | built with MSYS2 (`fork()` for persistence) | – | 9.1 |
-| `redis` | built | – (Valkey only) | – | 7.2, 7.4, 8.4, 8.10 |
+| `valkey` | built | built with MSYS2 (`fork()` for persistence) | built (glibc 2.28+) | 9.1 |
+| `redis` | built | – (Valkey only) | built (glibc 2.28+) | 7.2, 7.4, 8.4, 8.10 |
 | `meilisearch` | mirrored (Community Edition) | mirrored (Community Edition) | mirrored (Community Edition) | 1 |
 | `typesense` | mirrored | – (no Windows build upstream) | mirrored | 29, 30 |
 | `rustfs` | mirrored | mirrored | mirrored (static musl build) | 1 |
@@ -43,6 +43,16 @@ binary needs a newer glibc or another shared library, and the smoke test runs ag
 container. Linux starts at PHP 8.2: 8.1 had reached its end of life, and its headers need
 `_GNU_SOURCE`, which the mongodb extension's `-std=c17` build doesn't get from 8.1's `php_config.h`.
 FrankenPHP isn't built for Linux yet.
+
+### Services for Linux
+
+PostgreSQL, Valkey and Redis for Linux are built in the `manylinux_2_28` container (AlmaLinux 8,
+the image Python wheels are built in), so they need glibc 2.28 (2018: Debian 10, Ubuntu 20.04, RHEL
+8 and later). Valkey and Redis need nothing but glibc. PostgreSQL links OpenSSL statically, as on
+macOS, and `scripts/linux/bundle.sh` copies the other libraries it needs (zlib, libuuid, libedit for
+psql) to `lib/`, with their licenses, and points every binary there with an `$ORIGIN` RUNPATH, the
+Linux counterpart of `scripts/macos/relocate.sh`. `scripts/verify-linux.sh` checks that every
+library comes from glibc or the package, and the smoke test runs in an `almalinux:8` container.
 
 ### PHP release candidates
 
@@ -98,7 +108,7 @@ build has `flock-package.json` at the top (what it is, how it was built) and `LI
 | `php-exts` | `ext/php_<name>.dll` into PHP's `ext\`; `*.dll` next to `php.exe` (ImageMagick) |
 | `frankenphp` (macOS) | `bin/frankenphp`, `ext/*.so` |
 | `frankenphp` (Windows) | `frankenphp.exe` next to the official PHP build of the same version |
-| `postgres` | `bin/`, `lib/`, `share/` (relocatable) |
+| `postgres` | `bin/`, `lib/`, `share/` (relocatable; on Linux `lib/` also has the bundled libraries) |
 | `mariadb` (macOS) | `bin/`, `scripts/mariadb-install-db`, `share/`, `lib/plugin/`; run with `--basedir` |
 | `valkey`, `redis` | `<name>-server`, `<name>-cli`, `<name>-benchmark` (Windows: with the MSYS2 DLLs) |
 | `meilisearch`, `rustfs`, `typesense` | the executable and its license |
@@ -141,7 +151,7 @@ the same version.
 | `build-php-linux.yml` | `php` for Linux (static-php-cli, glibc container) |
 | `build-php-exts-windows.yml` | `php-exts` for one PHP minor |
 | `build-frankenphp-windows.yml` | `frankenphp` for Windows |
-| `build-service.yml` | PostgreSQL, MariaDB (macOS), Valkey, Redis from source |
+| `build-service.yml` | PostgreSQL, MariaDB (macOS), Valkey, Redis from source (Linux: in `manylinux_2_28`) |
 | `mirror.yml` | everything mirrored, including PHP for Windows |
 
 ### Licenses and sources
@@ -276,11 +286,12 @@ packages/<name>/mirror.sh        download + verify a vendor release (mirrored pa
 packages/<name>/source.sh        download + verify the upstream source (builds, and published for copyleft)
 scripts/lib.sh                   download and checksum helpers for the package scripts
 scripts/macos/                   static OpenSSL build, relocation of macOS installs (@loader_path)
+scripts/linux/                   static OpenSSL build, bundling of libraries into Linux installs ($ORIGIN)
 scripts/windows/                 php-windows-builder setup, extension packs, Windows smoke tests
 scripts/publish.sh               upload a package (and its sources) to its release
 scripts/ready-issue.sh           keep the Ready for testing issue up to date
 scripts/upstream-issues.sh       turn the weekly check's findings into issues
 scripts/verify-macos.sh          fails when a Mach-O file links outside macOS or targets macOS > 13
-scripts/verify-linux.sh          fails when an ELF file needs a library beyond glibc's or glibc > 2.17
+scripts/verify-linux.sh          fails when an ELF file needs a library from outside glibc and the package, or a newer glibc
 scripts/smoke-*.sh               smoke tests run against every package before it is published
 ```
