@@ -18,7 +18,7 @@ vendor's own binaries, checked against the vendor's checksum or signature.
 | `php-exts` | – | built: extension DLLs for the Windows build (below) | – | one pack per Windows minor |
 | `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | – | PHP 8.2–8.5 |
 | `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | built (glibc 2.28+, see below) | 14–18 |
-| `mariadb` | built | mirrored | – | 10.11, 11.4, 11.8, 12.3 |
+| `mariadb` | built | mirrored | built (glibc 2.28+) | 10.11, 11.4, 11.8, 12.3 |
 | `mysql` | mirrored | mirrored | – | 8.0, 8.4, 9.7 |
 | `mongodb` | mirrored | mirrored | – | 7.0, 8.0, 9.0 |
 | `valkey` | built | built with MSYS2 (`fork()` for persistence) | built (glibc 2.28+) | 9.1 |
@@ -46,12 +46,14 @@ FrankenPHP isn't built for Linux yet.
 
 ### Services for Linux
 
-PostgreSQL, Valkey and Redis for Linux are built in the `manylinux_2_28` container (AlmaLinux 8,
+PostgreSQL, MariaDB, Valkey and Redis for Linux are built in the `manylinux_2_28` container (AlmaLinux 8,
 the image Python wheels are built in), so they need glibc 2.28 (2018: Debian 10, Ubuntu 20.04, RHEL
 8 and later). Valkey and Redis need nothing but glibc. PostgreSQL links OpenSSL statically, as on
 macOS, and `scripts/linux/bundle.sh` copies the other libraries it needs (zlib, libuuid, libedit for
 psql) to `lib/`, with their licenses, and points every binary there with an `$ORIGIN` RUNPATH, the
-Linux counterpart of `scripts/macos/relocate.sh`. `scripts/verify-linux.sh` checks that every
+Linux counterpart of `scripts/macos/relocate.sh`. MariaDB is configured as on macOS and bundles
+libedit and ncurses for its client; it is built without libaio (InnoDB then does its I/O with its
+own threads), whose library Ubuntu 24.04 renamed. `scripts/verify-linux.sh` checks that every
 library comes from glibc or the package, and the smoke test runs in an `almalinux:8` container.
 
 ### PHP release candidates
@@ -109,7 +111,7 @@ build has `flock-package.json` at the top (what it is, how it was built) and `LI
 | `frankenphp` (macOS) | `bin/frankenphp`, `ext/*.so` |
 | `frankenphp` (Windows) | `frankenphp.exe` next to the official PHP build of the same version |
 | `postgres` | `bin/`, `lib/`, `share/` (relocatable; on Linux `lib/` also has the bundled libraries) |
-| `mariadb` (macOS) | `bin/`, `scripts/mariadb-install-db`, `share/`, `lib/plugin/`; run with `--basedir` |
+| `mariadb` (macOS, Linux) | `bin/`, `scripts/mariadb-install-db`, `share/`, `lib/plugin/` (Linux: also the bundled libraries in `lib/`); run with `--basedir` |
 | `valkey`, `redis` | `<name>-server`, `<name>-cli`, `<name>-benchmark` (Windows: with the MSYS2 DLLs) |
 | `meilisearch`, `rustfs`, `typesense` | the executable and its license |
 
@@ -151,7 +153,7 @@ the same version.
 | `build-php-linux.yml` | `php` for Linux (static-php-cli, glibc container) |
 | `build-php-exts-windows.yml` | `php-exts` for one PHP minor |
 | `build-frankenphp-windows.yml` | `frankenphp` for Windows |
-| `build-service.yml` | PostgreSQL, MariaDB (macOS), Valkey, Redis from source (Linux: in `manylinux_2_28`) |
+| `build-service.yml` | PostgreSQL, MariaDB (macOS, Linux), Valkey, Redis from source (Linux: in `manylinux_2_28`) |
 | `mirror.yml` | everything mirrored, including PHP for Windows |
 
 ### Licenses and sources

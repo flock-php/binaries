@@ -55,9 +55,11 @@
       "lines": ["10.11", "11.4", "11.8", "12.3"],
       "platforms": {
         "macos-arm64": { "how": "build", "build": 1 },
-        "windows-x64": { "how": "mirror", "build": 1 }
+        "windows-x64": { "how": "mirror", "build": 1 },
+        "linux-x64": { "how": "build", "build": 1 },
+        "linux-arm64": { "how": "build", "build": 1 }
       },
-      "env": { "OPENSSL_VERSION": "3.5.9", "MIN_OS": "13.0" },
+      "env": { "MIN_GLIBC": "2.28", "OPENSSL_VERSION": "3.5.9", "MIN_OS": "13.0" },
       "publish_source": true
     },
     "valkey": {

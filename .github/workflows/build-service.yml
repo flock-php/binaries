@@ -99,7 +99,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           arch=x86_64; [[ "$PLATFORM" == linux-arm64 ]] && arch=aarch64
-          docker run --rm -v "$PWD:/w" -w /w -e OPENSSL_VERSION -e GITHUB_TOKEN \
+          docker run --rm -v "$PWD:/w" -w /w -e OPENSSL_VERSION -e GITHUB_TOKEN -e SOURCES_DIR=/w/sources \
             "quay.io/pypa/manylinux_2_28_$arch" bash "packages/$PKG/linux/build.sh" "$VERSION" out
           sudo chown -R "$(id -u):$(id -g)" .
 
