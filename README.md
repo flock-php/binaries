@@ -1,7 +1,7 @@
 # Flock binaries
 
 Prebuilt PHP, FrankenPHP and services (PostgreSQL, MariaDB, MySQL, MongoDB, Valkey, Redis,
-Meilisearch, Typesense, RustFS, Node.js) for [Flock](https://github.com/flock-php/flock), built
+Meilisearch, Typesense, RustFS, Node.js, cloudflared) for [Flock](https://github.com/flock-php/flock), built
 reproducibly on GitHub Actions and published as GitHub Releases. Flock downloads them from a
 signed manifest, so nothing has to be compiled on your machine.
 
@@ -25,6 +25,7 @@ vendor's own binaries, checked against the vendor's checksum or signature.
 | `meilisearch` | mirrored (Community Edition) | mirrored (Community Edition) | 1 |
 | `typesense` | mirrored | – (no Windows build upstream) | 29, 30 |
 | `rustfs` | mirrored | mirrored | 1 |
+| `cloudflared` | mirrored (Cloudflare's signed build, for `flock share`) | mirrored (Cloudflare's signed build) | 2026 |
 | `node` | mirrored | mirrored | 16, 18, 20, 22, 24, 26 |
 
 The versions column lists release lines: every day the newest upstream release of each line is
@@ -89,7 +90,7 @@ build has `flock-package.json` at the top (what it is, how it was built) and `LI
 | `postgres` | `bin/`, `lib/`, `share/` (relocatable) |
 | `mariadb` (macOS) | `bin/`, `scripts/mariadb-install-db`, `share/`, `lib/plugin/`; run with `--basedir` |
 | `valkey`, `redis` | `<name>-server`, `<name>-cli`, `<name>-benchmark` (Windows: with the MSYS2 DLLs) |
-| `meilisearch`, `rustfs`, `typesense` | the executable and its license |
+| `meilisearch`, `rustfs`, `typesense`, `cloudflared` | the executable and its license |
 
 ### Things to know
 
