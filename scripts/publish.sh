@@ -19,6 +19,20 @@ title() {
   esac
 }
 
+# Uploads a file that every platform of the release shares. Another platform may be uploading
+# the same name at once: if our upload fails, wait until its upload has finished.
+upload_once() {
+  local file="$1" name; name="$(basename "$1")"
+  gh release upload "$TAG" "$file" && return
+  for _ in $(seq 60); do
+    gh api "repos/{owner}/{repo}/releases/tags/$TAG" \
+      --jq '.assets[] | select(.state == "uploaded") | .name' | grep -qx "$name" && return
+    sleep 10
+  done
+  echo "$name is not on $TAG after 10 minutes" >&2
+  return 1
+}
+
 if ! gh release view "$TAG" >/dev/null 2>&1; then
   # Two platforms can publish at once: losing the race to create the release is fine.
   gh release create "$TAG" --title "$(title) $V" --latest=false \
@@ -33,7 +47,7 @@ if [[ "$(jq -r --arg p "$PKG" '.packages[$p].publish_source // false' "$ROOT/ver
   if ! grep -qx "$src" <<<"$assets"; then
     tmp="$(mktemp -d)"
     bash "$ROOT/packages/$PKG/source.sh" "$V" "$tmp/$src"
-    gh release upload "$TAG" "$tmp/$src" || gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx "$src"
+    upload_once "$tmp/$src"
   fi
 fi
 
@@ -42,7 +56,7 @@ for extra in "$@"; do
   [[ -f "$extra" ]] || continue
   name="$(basename "$extra")"
   if ! grep -qx "$name" <<<"$assets"; then
-    gh release upload "$TAG" "$extra" || gh release view "$TAG" --json assets --jq ".assets[].name" | grep -qx "$name"
+    upload_once "$extra"
   fi
 done
 
