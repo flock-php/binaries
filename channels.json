@@ -1,6 +1,12 @@
 {
   "baseline": "2026-10-16T19:00:00Z",
   "approved": {
+    "cloudflared-2026.10.2-build1-macos-arm64": {
+      "beta": "2026-10-20T10:27:16Z"
+    },
+    "cloudflared-2026.10.2-build1-windows-x64": {
+      "beta": "2026-10-20T10:27:16Z"
+    },
     "frankenphp-8.2.34-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
     },
