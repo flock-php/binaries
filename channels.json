@@ -58,6 +58,12 @@
     "php-8.5.11-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
     },
+    "php-8.5.12-build1-windows-x64": {
+      "stable": "2026-10-21T20:59:01Z"
+    },
+    "php-8.5.12-build2-macos-arm64": {
+      "stable": "2026-10-21T20:59:01Z"
+    },
     "php-exts-7.4-build2-windows-x64": {
       "beta": "2026-10-18T12:56:59Z"
     },
