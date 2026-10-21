@@ -10,6 +10,12 @@
     "frankenphp-8.2.34-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
     },
+    "frankenphp-8.2.35-build1-windows-x64": {
+      "stable": "2026-10-21T21:00:18Z"
+    },
+    "frankenphp-8.2.35-build2-macos-arm64": {
+      "stable": "2026-10-21T21:00:18Z"
+    },
     "frankenphp-8.3.35-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
     },
