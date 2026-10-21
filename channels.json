@@ -25,6 +25,12 @@
     "php-8.2.34-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
     },
+    "php-8.2.35-build1-windows-x64": {
+      "stable": "2026-10-21T20:53:22Z"
+    },
+    "php-8.2.35-build2-macos-arm64": {
+      "stable": "2026-10-21T20:53:22Z"
+    },
     "php-8.3.35-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
     },
