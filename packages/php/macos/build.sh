@@ -77,8 +77,14 @@ if [[ "$PHP_VERSION" =~ RC[0-9]+$ ]]; then
   DOWNLOAD_ARGS="$DOWNLOAD_ARGS --custom-url=php-src:$rc_url"
   with_php="$PHP_MINOR" # static-php-cli only takes x.y or x.y.z; the source is the RC tarball
 fi
+# The downloads cache can come from an older patch of the minor (build-php-macos.yml's restore-keys):
+# static-php-cli would keep its php-src, so always fetch that one again.
 # shellcheck disable=SC2086
-./spc download --with-php="$with_php" --for-extensions="$all" --prefer-pre-built --retry=3 ${DOWNLOAD_ARGS:-}
+./spc download --with-php="$with_php" --for-extensions="$all" --prefer-pre-built --retry=3 \
+  --ignore-cache-sources=php-src ${DOWNLOAD_ARGS:-}
+if [[ -z "$rc_sum" && "$PHP_VERSION" == *.*.* && ! -f "downloads/php-$PHP_VERSION.tar.xz" ]]; then
+  echo "::error::static-php-cli didn't download PHP $PHP_VERSION"; ls downloads; exit 1
+fi
 if [[ -n "$rc_sum" ]]; then
   rc_file="downloads/$(basename "$rc_url")"
   [[ -f "$rc_file" ]] || { echo "::error::static-php-cli didn't save $rc_file"; ls downloads; exit 1; }
