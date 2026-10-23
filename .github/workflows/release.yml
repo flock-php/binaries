@@ -3,9 +3,10 @@
 # Flock downloads https://github.com/<repo>/releases/download/manifest/manifest.json (+ .sig), or
 # manifest-beta.json / manifest-experimental.json for those channels.
 #   php-macos  PHP and FrankenPHP for macOS (build-php-macos.yml)
+#   php-linux  PHP and FrankenPHP for Linux, x64 and arm64 (build-php-linux.yml)
 #   php-exts-windows    extension packs for Windows PHP, one per minor (build-php-exts-windows.yml)
 #   frankenphp-windows  FrankenPHP for Windows (build-frankenphp-windows.yml)
-#   builds     services built from source: PostgreSQL, MariaDB (macOS), Valkey, Redis (build-service.yml)
+#   builds     services built from source: PostgreSQL, MariaDB (macOS, Linux), Valkey, Redis (build-service.yml)
 #   mirrors    mirrored from the vendor: PHP for Windows, MySQL, MongoDB, Node.js, ... (mirror.yml)
 name: Release
 
@@ -34,6 +35,7 @@ jobs:
     outputs:
       any: ${{ steps.plan.outputs.any }}
       php_macos: ${{ steps.plan.outputs.php_macos }}
+      php_linux: ${{ steps.plan.outputs.php_linux }}
       php_exts_windows: ${{ steps.plan.outputs.php_exts_windows }}
       frankenphp_windows: ${{ steps.plan.outputs.frankenphp_windows }}
       builds: ${{ steps.plan.outputs.builds }}
@@ -64,6 +66,23 @@ jobs:
     with:
       version: ${{ matrix.version }}
       package: ${{ matrix.package }}
+      publish: true
+      optional: ${{ matrix.optional == true }}
+
+  php-linux:
+    needs: plan
+    if: needs.plan.outputs.php_linux != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.php_linux) }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-php-linux.yml
+    with:
+      version: ${{ matrix.version }}
+      package: ${{ matrix.package }}
+      platform: ${{ matrix.platform }}
       publish: true
       optional: ${{ matrix.optional == true }}
 
@@ -132,7 +151,7 @@ jobs:
       publish: true
 
   manifest:
-    needs: [plan, php-macos, php-exts-windows, frankenphp-windows, builds, mirrors]
+    needs: [plan, php-macos, php-linux, php-exts-windows, frankenphp-windows, builds, mirrors]
     # Also after failed builds: whatever did get published belongs in the manifests.
     if: always() && needs.plan.result == 'success'
     permissions:
