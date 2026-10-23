@@ -10,6 +10,8 @@ V="$1"; PLATFORM="$2"; OUT="$3"
 case "$PLATFORM" in
   macos-arm64) asset=meilisearch-macos-apple-silicon; bin=meilisearch ;;
   windows-x64) asset=meilisearch-windows-amd64.exe; bin=meilisearch.exe ;;
+  linux-x64) asset=meilisearch-linux-amd64; bin=meilisearch ;;
+  linux-arm64) asset=meilisearch-linux-aarch64; bin=meilisearch ;;
 esac
 dir="$(mktemp -d)"
 fetch "https://github.com/meilisearch/meilisearch/releases/download/v$V/$asset" "$dir/$bin"
