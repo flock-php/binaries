@@ -76,7 +76,10 @@ type platformConfig struct {
 	Build int    `json:"build"`
 }
 
-var platformExt = map[string]string{"macos-arm64": "tar.gz", "windows-x64": "zip"}
+// platforms are the platforms packages are published for, in the order they are planned.
+var platforms = []string{"macos-arm64", "windows-x64", "linux-x64", "linux-arm64"}
+
+var platformExt = map[string]string{"macos-arm64": "tar.gz", "windows-x64": "zip", "linux-x64": "tar.gz", "linux-arm64": "tar.gz"}
 
 func loadVersions(path string) (*versions, error) {
 	data, err := os.ReadFile(path)
