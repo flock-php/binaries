@@ -7,26 +7,28 @@ signed manifest, so nothing has to be compiled on your machine.
 
 ## What we publish
 
-Platforms are macOS on Apple Silicon (`macos-arm64`, macOS 13+) and Windows x64 (`windows-x64`).
+Platforms are macOS on Apple Silicon (`macos-arm64`, macOS 13+), Windows x64 (`windows-x64`) and
+Linux x64 and arm64 (`linux-x64`, `linux-arm64`: glibc, built on Ubuntu 24.04, the oldest
+distribution Flock supports).
 Every package is either **built** here from verified upstream source, or **mirrored**: the
 vendor's own binaries, checked against the vendor's checksum or signature.
 
-| Package | macOS arm64 | Windows x64 | Versions (`versions.json`) |
-|---|---|---|---|
-| `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | macOS 8.1–8.5, Windows 7.4–8.5 |
-| `php-exts` | – | built: extension DLLs for the Windows build (below) | one pack per Windows minor |
-| `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | PHP 8.2–8.5 |
-| `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | 14–18 |
-| `mariadb` | built | mirrored | 10.11, 11.4, 11.8, 12.3 |
-| `mysql` | mirrored | mirrored | 8.0, 8.4, 9.7 |
-| `mongodb` | mirrored | mirrored | 7.0, 8.0, 9.0 |
-| `valkey` | built | built with MSYS2 (`fork()` for persistence) | 9.1 |
-| `redis` | built | – (Valkey only) | 7.2, 7.4, 8.4, 8.10 |
-| `meilisearch` | mirrored (Community Edition) | mirrored (Community Edition) | 1 |
-| `typesense` | mirrored | – (no Windows build upstream) | 29, 30 |
-| `rustfs` | mirrored | mirrored | 1 |
-| `cloudflared` | mirrored (Cloudflare's signed build, for `flock share`) | mirrored (Cloudflare's signed build) | 2026 |
-| `node` | mirrored | mirrored | 16, 18, 20, 22, 24, 26 |
+| Package | macOS arm64 | Windows x64 | Linux x64, arm64 | Versions (`versions.json`) |
+|---|---|---|---|---|
+| `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | built: as on macOS, against glibc | macOS and Linux 8.1–8.5, Windows 7.4–8.5 |
+| `php-exts` | – | built: extension DLLs for the Windows build (below) | – | one pack per Windows minor |
+| `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | built: as on macOS | PHP 8.2–8.5 |
+| `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | built | 14–18 |
+| `mariadb` | built | mirrored | built | 10.11, 11.4, 11.8, 12.3 |
+| `mysql` | mirrored | mirrored | mirrored, with libaio and libnuma built here (below) | 8.0, 8.4, 9.7 |
+| `mongodb` | mirrored | mirrored | mirrored: the Ubuntu 24.04 build (22.04's for 7.0) | 7.0, 8.0, 9.0 |
+| `valkey` | built | built with MSYS2 (`fork()` for persistence) | built | 9.1 |
+| `redis` | built | – (Valkey only) | – (Valkey only) | 7.2, 7.4, 8.4, 8.10 |
+| `meilisearch` | mirrored (Community Edition) | mirrored (Community Edition) | mirrored (Community Edition) | 1 |
+| `typesense` | mirrored | – (no Windows build upstream) | mirrored | 29, 30 |
+| `rustfs` | mirrored | mirrored | mirrored | 1 |
+| `cloudflared` | mirrored (Cloudflare's signed build, for `flock share`) | mirrored (Cloudflare's signed build) | mirrored | 2026 |
+| `node` | mirrored | mirrored | mirrored | 16, 18, 20, 22, 24, 26 |
 
 The versions column lists release lines: every day the newest upstream release of each line is
 looked up (`tools/flockrel/upstream.go`, php.net and windows.php.net for PHP) and built or mirrored
@@ -76,25 +78,31 @@ read its configure option from, so `--enable-opentelemetry` is passed explicitly
 
 ### Package layouts
 
-Archives are `.tar.gz` on macOS and `.zip` on Windows. Mirrored packages keep the vendor's layout,
+Archives are `.tar.gz` on macOS and Linux, and `.zip` on Windows. Mirrored packages keep the vendor's layout,
 usually one top-level folder (`mysql-8.4.11-macos15-arm64/bin/mysqld`); unpack and drop it. What we
 build has `flock-package.json` at the top (what it is, how it was built) and `LICENSES/`.
 
 | Package | Layout |
 |---|---|
-| `php` (macOS) | `bin/php`, `bin/php-fpm`, `ext/*.so` |
+| `php` (macOS, Linux) | `bin/php`, `bin/php-fpm`, `ext/*.so` |
 | `php` (Windows) | the official zip: `php.exe`, `php-cgi.exe`, `ext/` |
 | `php-exts` | `ext/php_<name>.dll` into PHP's `ext\`; `*.dll` next to `php.exe` (ImageMagick) |
-| `frankenphp` (macOS) | `bin/frankenphp`, `ext/*.so` |
+| `frankenphp` (macOS, Linux) | `bin/frankenphp`, `ext/*.so` |
 | `frankenphp` (Windows) | `frankenphp.exe` next to the official PHP build of the same version |
 | `postgres` | `bin/`, `lib/`, `share/` (relocatable) |
-| `mariadb` (macOS) | `bin/`, `scripts/mariadb-install-db`, `share/`, `lib/plugin/`; run with `--basedir` |
+| `mariadb` (macOS, Linux) | `bin/`, `scripts/mariadb-install-db`, `share/`, `lib/plugin/`; run with `--basedir` |
 | `valkey`, `redis` | `<name>-server`, `<name>-cli`, `<name>-benchmark` (Windows: with the MSYS2 DLLs) |
 | `meilisearch`, `rustfs`, `typesense`, `cloudflared` | the executable and its license |
 
 ### Things to know
 
 - **MySQL on macOS** needs macOS 15: Oracle builds it for no older release.
+- **MySQL on Linux** needs `libaio.so.1` and `libnuma.so.1`, which not every distribution has under
+  that name (Ubuntu 24.04 calls it `libaio.so.1t64`): both are built here into `lib/private`, which
+  MySQL searches first.
+- **Linux builds** link only libraries every desktop Linux has, or bundle them, and need no newer
+  glibc than Ubuntu 24.04's (`scripts/verify-linux.sh`). Mirrored MongoDB also links OpenSSL and
+  libcurl, and MySQL libkeyutils: Flock's Linux packages depend on them.
 - **PostgreSQL on Windows** refuses to run as an administrator: start it with `pg_ctl`, which drops
   the administrator rights first.
 - **PHP on Windows** is only mirrored while it is windows.php.net's current build of its minor
@@ -127,9 +135,10 @@ the same version.
 | `promote.yml` | records a channel decision (promote, hold, yank) in `channels.json` |
 | `check.yml` | weekly: new release lines, end of life, newer pinned versions as issues |
 | `build-php-macos.yml` | `php` and `frankenphp` for macOS (static-php-cli) |
+| `build-php-linux.yml` | `php` and `frankenphp` for Linux, x64 and arm64 (static-php-cli, glibc) |
 | `build-php-exts-windows.yml` | `php-exts` for one PHP minor |
 | `build-frankenphp-windows.yml` | `frankenphp` for Windows |
-| `build-service.yml` | PostgreSQL, MariaDB (macOS), Valkey, Redis from source |
+| `build-service.yml` | PostgreSQL, MariaDB (macOS, Linux), Valkey, Redis from source |
 | `mirror.yml` | everything mirrored, including PHP for Windows |
 
 ### Licenses and sources
