@@ -22,6 +22,7 @@ type build struct {
 // runPlan prints, and writes to $GITHUB_OUTPUT, the builds whose release asset doesn't exist yet:
 //
 //	php_macos=[{"package":"php","version":"8.4.26","platform":"macos-arm64","build":1}, ...]   (php and frankenphp)
+//	php_linux=[{"package":"php","version":"8.4.26","platform":"linux-x64","build":1}, ...]   (php and frankenphp)
 //	php_exts_windows=[{"package":"php-exts","version":"8.4","platform":"windows-x64","build":1}, ...]
 //	frankenphp_windows=[{"package":"frankenphp","version":"8.4.26","platform":"windows-x64","build":1}, ...]
 //	builds=[{"package":"postgres","version":"18.6","platform":"windows-x64","build":1}, ...]
@@ -69,7 +70,7 @@ func runPlan(args []string) error {
 		return true
 	}
 
-	phpMacOS, phpExtsWindows, frankenWindows := []build{}, []build{}, []build{}
+	phpMacOS, phpLinux, phpExtsWindows, frankenWindows := []build{}, []build{}, []build{}, []build{}
 	builds, mirrors := []build{}, []build{}
 
 	// PHP versions per minor: php.net for macOS (built from source), windows.php.net for Windows
@@ -127,6 +128,26 @@ func runPlan(args []string) error {
 				phpMacOS = append(phpMacOS, b)
 			}
 		}
+		// Linux: built from the same php.net release as macOS, on each architecture.
+		var linuxVersions []string
+		if *only != "" {
+			linuxVersions = strings.Split(*only, ",")
+		} else {
+			for _, minor := range v.PHP.Linux.Minors {
+				latest, err := macOSVersion(minor)
+				if err != nil {
+					return err
+				}
+				linuxVersions = append(linuxVersions, latest)
+			}
+		}
+		for _, ver := range linuxVersions {
+			for _, platform := range linuxPlatforms {
+				if b := (build{Package: "php", Version: strings.TrimSpace(ver), Platform: platform, Build: v.PHP.Linux.Build}); needed(b) {
+					phpLinux = append(phpLinux, b)
+				}
+			}
+		}
 		if *only == "" {
 			for _, minor := range v.PHP.Windows.Minors {
 				if ver, ok := windowsVersion(minor); ok {
@@ -160,6 +181,11 @@ func runPlan(args []string) error {
 			if b := (build{Package: "frankenphp", Version: latest, Platform: "macos-arm64", Build: v.FrankenPHP.MacOS.Build, Optional: newMinorRC.MatchString(latest)}); needed(b) {
 				phpMacOS = append(phpMacOS, b)
 			}
+			for _, platform := range linuxPlatforms {
+				if b := (build{Package: "frankenphp", Version: latest, Platform: platform, Build: v.FrankenPHP.Linux.Build, Optional: newMinorRC.MatchString(latest)}); needed(b) {
+					phpLinux = append(phpLinux, b)
+				}
+			}
 			if ver, ok := windowsVersion(minor); ok {
 				if b := (build{Package: "frankenphp", Version: ver, Platform: "windows-x64", Build: v.FrankenPHP.Windows.Build, Optional: newMinorRC.MatchString(ver)}); needed(b) {
 					frankenWindows = append(frankenWindows, b)
@@ -178,7 +204,7 @@ func runPlan(args []string) error {
 			fmt.Fprintf(os.Stderr, "::warning::%s\n", msg)
 		}
 		for _, ver := range vers {
-			for _, platform := range []string{"macos-arm64", "windows-x64"} {
+			for _, platform := range platforms {
 				c, ok := p.Platforms[platform]
 				if !ok {
 					continue
@@ -200,11 +226,11 @@ func runPlan(args []string) error {
 	for _, o := range []struct {
 		name string
 		list []build
-	}{{"php_macos", phpMacOS}, {"php_exts_windows", phpExtsWindows}, {"frankenphp_windows", frankenWindows}, {"builds", builds}, {"mirrors", mirrors}} {
+	}{{"php_macos", phpMacOS}, {"php_linux", phpLinux}, {"php_exts_windows", phpExtsWindows}, {"frankenphp_windows", frankenWindows}, {"builds", builds}, {"mirrors", mirrors}} {
 		j, _ := json.Marshal(o.list)
 		fmt.Fprintf(&out, "%s=%s\n", o.name, j)
 	}
-	fmt.Fprintf(&out, "any=%t\n", len(phpMacOS)+len(phpExtsWindows)+len(frankenWindows)+len(builds)+len(mirrors) > 0)
+	fmt.Fprintf(&out, "any=%t\n", len(phpMacOS)+len(phpLinux)+len(phpExtsWindows)+len(frankenWindows)+len(builds)+len(mirrors) > 0)
 	fmt.Print(out.String())
 	if path := os.Getenv("GITHUB_OUTPUT"); path != "" {
 		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)

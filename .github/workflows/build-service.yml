@@ -1,5 +1,5 @@
 # Builds one release of a service (PostgreSQL, MariaDB, Valkey, Redis) from source for one
-# platform with packages/<package>/<os>/build.*, checks it (portability on macOS), smoke-tests it
+# platform with packages/<package>/<os>/build.*, checks it (portability on macOS and Linux), smoke-tests it
 # on a clean runner, and publishes it as <package>-<version>-build<N>-<platform>.<ext> on the
 # <package>-<version> release, next to the upstream source when the license asks for it.
 # Called by release.yml for every version without that build yet; run it by hand to test.
@@ -32,7 +32,7 @@ on:
       platform:
         description: Platform
         type: choice
-        options: [macos-arm64, windows-x64]
+        options: [macos-arm64, windows-x64, linux-x64, linux-arm64]
       publish:
         description: Publish the package as a release asset
         type: boolean
@@ -49,7 +49,8 @@ env:
 jobs:
   build:
     name: build ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
-    runs-on: ${{ inputs.platform == 'windows-x64' && 'windows-2022' || 'macos-15' }}
+    # Linux: the oldest Ubuntu LTS Flock supports, so the build runs on every newer distribution.
+    runs-on: ${{ fromJSON('{"windows-x64":"windows-2022","macos-arm64":"macos-15","linux-x64":"ubuntu-24.04","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] }}
     timeout-minutes: 180
     outputs:
       asset: ${{ steps.config.outputs.asset }}
@@ -84,6 +85,23 @@ jobs:
       - name: Portability (otool)
         if: runner.os == 'macOS'
         run: bash scripts/verify-macos.sh out "$MIN_OS" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Linux: the static OpenSSL only changes with its version, per architecture.
+      - name: Cache OpenSSL
+        if: runner.os == 'Linux' && env.OPENSSL_VERSION != ''
+        uses: actions/cache@v6
+        with:
+          path: ${{ inputs.package }}-work/openssl
+          key: openssl-${{ env.OPENSSL_VERSION }}-${{ inputs.platform }}
+      - name: Build tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y --no-install-recommends cmake bison flex patchelf uuid-dev libncurses-dev
+      - name: Build
+        if: runner.os == 'Linux'
+        run: bash "packages/$PKG/linux/build.sh" "$VERSION" out
+      - name: Portability (readelf)
+        if: runner.os == 'Linux'
+        run: bash scripts/verify-linux.sh out | tee -a "$GITHUB_STEP_SUMMARY"
 
       # Windows Valkey: MSYS2 provides fork() (packages/valkey/windows/build.sh).
       - uses: msys2/setup-msys2@v2
@@ -156,11 +174,12 @@ jobs:
           retention-days: 7
 
   # A clean runner: on macOS the oldest Apple Silicon image with Homebrew moved away (closest to
-  # a user's Mac); on Windows without MSYS2 runtimes on PATH, so only the bundled DLLs are used.
+  # a user's Mac); on Windows without MSYS2 runtimes on PATH, so only the bundled DLLs are used;
+  # on Linux a fresh one of the architecture, without the build's -dev packages.
   test:
     name: run ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
     needs: build
-    runs-on: ${{ inputs.platform == 'windows-x64' && 'windows-2022' || 'macos-14' }}
+    runs-on: ${{ fromJSON('{"windows-x64":"windows-2022","macos-arm64":"macos-14","linux-x64":"ubuntu-24.04","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] }}
     timeout-minutes: 20
     env:
       ASSET: ${{ needs.build.outputs.asset }}
@@ -173,7 +192,7 @@ jobs:
         if: runner.os == 'macOS'
         run: sudo mv /opt/homebrew /opt/homebrew.hidden
       - name: Smoke test
-        if: runner.os == 'macOS'
+        if: runner.os != 'Windows'
         run: bash scripts/smoke-service.sh "$PKG" "$ASSET"
       - name: Remove other MSYS runtimes from PATH
         if: runner.os == 'Windows'

@@ -9,6 +9,8 @@ V="$1"; PLATFORM="$2"; OUT="$3"
 case "$PLATFORM" in
   macos-arm64) asset="rustfs-macos-aarch64-v$V.zip" ;;
   windows-x64) asset="rustfs-windows-x86_64-v$V.zip" ;;
+  linux-x64) asset="rustfs-linux-x86_64-gnu-v$V.zip" ;;
+  linux-arm64) asset="rustfs-linux-aarch64-gnu-v$V.zip" ;;
 esac
 tmp="$(mktemp -d)"; dir="$tmp/pkg"; mkdir "$dir"
 fetch "https://github.com/rustfs/rustfs/releases/download/$V/$asset" "$tmp/$asset"
