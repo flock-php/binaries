@@ -29,6 +29,11 @@ SHARED_EXTS="${SHARED_EXTS:-}"
 TARGET="${TARGET:-php}"
 # static-php-cli's gnu-native toolchain: the system's gcc and glibc.
 export SPC_LIBC=glibc
+# static-php-cli builds mongodb.so with strict -std=c17, where glibc hides POSIX types unless asked
+# for them; PHP 8.1's zend_signal.h then lacks siginfo_t (8.2+ asks for them itself).
+if [[ "$PHP_MINOR" == 8.1 ]]; then
+  export SPC_DEFAULT_C_FLAGS="-fPIC -Os -D_GNU_SOURCE"
+fi
 
 case "$TARGET" in
   php)        build_flags=(--build-cli --build-fpm); binaries=(php php-fpm) ;;
