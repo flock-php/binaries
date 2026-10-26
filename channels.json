@@ -7,8 +7,20 @@
     "cloudflared-2026.10.2-build1-windows-x64": {
       "beta": "2026-10-20T10:27:16Z"
     },
+    "cloudflared-2026.10.3-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "cloudflared-2026.10.3-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
     "frankenphp-8.2.34-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
+    },
+    "frankenphp-8.2.35-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "frankenphp-8.2.35-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
     },
     "frankenphp-8.2.35-build1-windows-x64": {
       "stable": "2026-10-21T21:00:18Z"
@@ -19,6 +31,12 @@
     "frankenphp-8.3.35-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
     },
+    "frankenphp-8.3.36-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "frankenphp-8.3.36-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
     "frankenphp-8.3.36-build1-windows-x64": {
       "stable": "2026-10-21T21:01:27Z"
     },
@@ -27,6 +45,12 @@
     },
     "frankenphp-8.4.26-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
+    },
+    "frankenphp-8.4.27-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "frankenphp-8.4.27-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
     },
     "frankenphp-8.4.27-build1-windows-x64": {
       "stable": "2026-10-21T21:02:39Z"
@@ -37,17 +61,143 @@
     "frankenphp-8.5.11-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
     },
+    "frankenphp-8.5.12-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "frankenphp-8.5.12-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
     "frankenphp-8.5.12-build1-windows-x64": {
       "stable": "2026-10-21T20:54:26Z"
     },
     "frankenphp-8.5.12-build2-macos-arm64": {
       "stable": "2026-10-21T20:54:26Z"
     },
+    "mariadb-10.11.19-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mariadb-10.11.19-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mariadb-11.4.13-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mariadb-11.4.13-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mariadb-11.8.9-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mariadb-11.8.9-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mariadb-12.3.3-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mariadb-12.3.3-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "meilisearch-1.55.0-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "meilisearch-1.55.0-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "meilisearch-1.56.0-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "meilisearch-1.56.0-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mongodb-7.0.45-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mongodb-7.0.45-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mongodb-8.0.34-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mongodb-8.0.34-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mongodb-9.0.4-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mongodb-9.0.4-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mysql-8.0.46-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mysql-8.0.46-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mysql-8.4.13-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mysql-8.4.13-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mysql-9.7.4-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "mysql-9.7.4-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "node-16.20.2-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "node-16.20.2-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "node-18.20.8-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "node-18.20.8-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "node-20.20.2-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "node-20.20.2-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "node-22.23.4-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "node-22.23.4-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "node-24.22.1-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "node-24.22.1-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "node-26.12.1-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "node-26.12.1-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "php-8.1.34-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "php-8.1.34-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
     "php-8.1.34-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
     },
     "php-8.2.34-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-8.2.35-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "php-8.2.35-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
     },
     "php-8.2.35-build1-windows-x64": {
       "stable": "2026-10-21T20:53:22Z"
@@ -58,6 +208,12 @@
     "php-8.3.35-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
     },
+    "php-8.3.36-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "php-8.3.36-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
     "php-8.3.36-build1-windows-x64": {
       "stable": "2026-10-21T20:55:36Z"
     },
@@ -67,6 +223,12 @@
     "php-8.4.26-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
     },
+    "php-8.4.27-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "php-8.4.27-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
     "php-8.4.27-build1-windows-x64": {
       "stable": "2026-10-21T20:57:27Z"
     },
@@ -75,6 +237,12 @@
     },
     "php-8.5.11-build2-macos-arm64": {
       "beta": "2026-10-18T12:56:59Z"
+    },
+    "php-8.5.12-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "php-8.5.12-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
     },
     "php-8.5.12-build1-windows-x64": {
       "stable": "2026-10-21T20:59:01Z"
@@ -102,6 +270,66 @@
     },
     "php-exts-8.5-build2-windows-x64": {
       "beta": "2026-10-18T12:56:59Z"
+    },
+    "postgres-14.24-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "postgres-14.24-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "postgres-15.19-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "postgres-15.19-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "postgres-16.15-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "postgres-16.15-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "postgres-17.11-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "postgres-17.11-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "postgres-18.6-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "postgres-18.6-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "rustfs-1.0.3-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "rustfs-1.0.3-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "rustfs-1.0.4-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "rustfs-1.0.4-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "typesense-29.1-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "typesense-29.1-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "typesense-30.2-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "typesense-30.2-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "valkey-9.1.2-build1-linux-arm64": {
+      "beta": "2026-10-26T13:01:08Z"
+    },
+    "valkey-9.1.2-build1-linux-x64": {
+      "beta": "2026-10-26T13:01:08Z"
     }
   },
   "hold": {},
