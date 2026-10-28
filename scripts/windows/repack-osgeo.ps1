@@ -6,7 +6,9 @@
 #               (dumpbin /dependents) through the bundle's bin\ and its subfolders: libwinpthread-1.dll
 #               only is in bin\postgisgui\. Flock copies them next to postgres.exe, never replacing
 #               the server's own (OpenSSL, zlib).
-#   share\proj  with -Proj: PROJ's data; Flock points PROJ_DATA at it
+#   share\proj  with -Proj: PROJ's own data files, as PROJ installs them and the macOS and Linux
+#               packages have them: not the grids of proj-data (~50 MB of .tif) OSGeo adds, nor
+#               its cache.db. Flock points PROJ_DATA at it
 # Nothing else of the bundle (GDAL, raster, h3, MobilityDB, ...) is taken.
 # Run in a Visual Studio developer shell (dumpbin).
 # Usage: scripts/windows/repack-osgeo.ps1 -Source <dir> -Modules <dll,...> -Extensions <regex> -Out <dir> [-Proj]
@@ -57,8 +59,11 @@ Get-ChildItem (Join-Path $root 'share/extension') -File | Where-Object { $_.Name
 if ($Proj) {
     $projDb = Get-ChildItem $root -Recurse -Filter 'proj.db' | Select-Object -First 1
     if (-not $projDb) { throw 'the bundle has no proj.db' }
-    New-Item -ItemType Directory -Force (Join-Path $Out 'share') | Out-Null
-    Copy-Item $projDb.DirectoryName (Join-Path $Out 'share/proj') -Recurse
+    $projOut = Join-Path $Out 'share/proj'
+    New-Item -ItemType Directory -Force $projOut | Out-Null
+    $own = '^(proj\.db|proj\.ini|.*\.schema\.json|CH|GL27|ITRF\d+|nad\.lst|nad27|nad83|other\.extra|world)$'
+    Get-ChildItem $projDb.DirectoryName -File | Where-Object { $_.Name -match $own } | Copy-Item -Destination $projOut
+    Write-Output "share\proj: $((Get-ChildItem $projOut).Name -join ' ')"
 }
 foreach ($f in Get-ChildItem $root -File | Where-Object { $_.Name -match '^(LICENSE|COPYING|README)' -or $_.Name -match '_version\.txt$|^version\.txt$' }) {
     Copy-Item $f.FullName (Join-Path $Out "LICENSES/osgeo-$($f.Name)")
