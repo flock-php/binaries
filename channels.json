@@ -181,6 +181,126 @@
     "node-26.12.1-build1-linux-x64": {
       "beta": "2026-10-26T13:01:08Z"
     },
+    "pgrouting-pg14-4.0.0-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg14-4.0.2-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg14-4.0.2-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg14-4.0.2-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg15-4.0.1-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg15-4.0.2-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg15-4.0.2-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg15-4.0.2-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg16-4.0.1-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg16-4.0.2-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg16-4.0.2-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg16-4.0.2-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg17-4.0.1-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg17-4.0.2-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg17-4.0.2-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg17-4.0.2-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg18-4.0.1-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg18-4.0.2-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg18-4.0.2-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgrouting-pg18-4.0.2-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg14-0.8.7-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg14-0.8.7-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg14-0.8.7-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg14-0.8.7-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg15-0.8.7-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg15-0.8.7-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg15-0.8.7-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg15-0.8.7-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg16-0.8.7-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg16-0.8.7-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg16-0.8.7-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg16-0.8.7-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg17-0.8.7-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg17-0.8.7-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg17-0.8.7-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg17-0.8.7-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg18-0.8.7-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg18-0.8.7-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg18-0.8.7-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "pgvector-pg18-0.8.7-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
     "php-8.1.34-build1-linux-arm64": {
       "beta": "2026-10-26T13:01:08Z"
     },
@@ -271,11 +391,83 @@
     "php-exts-8.5-build2-windows-x64": {
       "beta": "2026-10-18T12:56:59Z"
     },
+    "postgis-pg14-3.6.1-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg14-3.6.4-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg14-3.6.4-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg14-3.6.4-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg15-3.6.2-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg15-3.6.4-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg15-3.6.4-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg15-3.6.4-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg16-3.6.2-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg16-3.6.4-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg16-3.6.4-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg16-3.6.4-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg17-3.6.2-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg17-3.6.4-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg17-3.6.4-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg17-3.6.4-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg18-3.6.2-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg18-3.6.4-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg18-3.6.4-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgis-pg18-3.6.4-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
     "postgres-14.24-build1-linux-arm64": {
       "beta": "2026-10-26T13:01:08Z"
     },
     "postgres-14.24-build1-linux-x64": {
       "beta": "2026-10-26T13:01:08Z"
+    },
+    "postgres-14.24-build2-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-14.24-build2-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-14.24-build2-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-14.24-build2-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
     },
     "postgres-15.19-build1-linux-arm64": {
       "beta": "2026-10-26T13:01:08Z"
@@ -283,11 +475,35 @@
     "postgres-15.19-build1-linux-x64": {
       "beta": "2026-10-26T13:01:08Z"
     },
+    "postgres-15.19-build2-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-15.19-build2-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-15.19-build2-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-15.19-build2-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
     "postgres-16.15-build1-linux-arm64": {
       "beta": "2026-10-26T13:01:08Z"
     },
     "postgres-16.15-build1-linux-x64": {
       "beta": "2026-10-26T13:01:08Z"
+    },
+    "postgres-16.15-build2-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-16.15-build2-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-16.15-build2-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-16.15-build2-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
     },
     "postgres-17.11-build1-linux-arm64": {
       "beta": "2026-10-26T13:01:08Z"
@@ -295,11 +511,35 @@
     "postgres-17.11-build1-linux-x64": {
       "beta": "2026-10-26T13:01:08Z"
     },
+    "postgres-17.11-build2-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-17.11-build2-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-17.11-build2-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-17.11-build2-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
     "postgres-18.6-build1-linux-arm64": {
       "beta": "2026-10-26T13:01:08Z"
     },
     "postgres-18.6-build1-linux-x64": {
       "beta": "2026-10-26T13:01:08Z"
+    },
+    "postgres-18.6-build2-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-18.6-build2-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-18.6-build2-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "postgres-18.6-build2-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
     },
     "rustfs-1.0.3-build1-linux-arm64": {
       "beta": "2026-10-26T13:01:08Z"
@@ -312,6 +552,42 @@
     },
     "rustfs-1.0.4-build1-linux-x64": {
       "beta": "2026-10-26T13:01:08Z"
+    },
+    "timescaledb-pg16-2.31.0-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "timescaledb-pg16-2.31.0-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "timescaledb-pg16-2.31.0-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "timescaledb-pg16-2.31.0-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "timescaledb-pg17-2.31.0-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "timescaledb-pg17-2.31.0-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "timescaledb-pg17-2.31.0-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "timescaledb-pg17-2.31.0-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "timescaledb-pg18-2.31.0-build1-linux-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "timescaledb-pg18-2.31.0-build1-linux-x64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "timescaledb-pg18-2.31.0-build1-macos-arm64": {
+      "beta": "2026-10-28T13:53:04Z"
+    },
+    "timescaledb-pg18-2.31.0-build1-windows-x64": {
+      "beta": "2026-10-28T13:53:04Z"
     },
     "typesense-29.1-build1-linux-arm64": {
       "beta": "2026-10-26T13:01:08Z"
