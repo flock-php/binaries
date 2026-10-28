@@ -109,7 +109,8 @@ jobs:
       - name: Build
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./packages/$env:EXT/windows/build.ps1 -Version $env:VERSION -Source "$env:EXT-work/src" -Postgres pg -Out out
+        # & with a quoted path: PowerShell doesn't expand variables in a bare command name.
+        run: '& "./packages/$env:EXT/windows/build.ps1" -Version $env:VERSION -Source "$env:EXT-work/src" -Postgres pg -Out out'
 
       - name: Package
         shell: bash
