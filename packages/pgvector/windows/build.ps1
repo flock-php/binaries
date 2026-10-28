@@ -16,8 +16,16 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 $Out = [IO.Path]::GetFullPath($Out)
 $pg = (Resolve-Path $Postgres).Path
-foreach ($f in 'include/server/postgres.h', 'lib/postgres.lib') {
-    if (-not (Test-Path (Join-Path $pg $f))) { throw "$pg has no ${f}: the postgres package needs build 2 or later" }
+# Where this PostgreSQL has its files (include\postgresql\server, lib\postgresql, ...): pgvector's
+# Makefile.win assumes include\server and lib, so they are given to nmake.
+$pgConfig = Join-Path $pg 'bin/pg_config.exe'
+function Dir($what) { (& $pgConfig "--$what").Trim() }
+$dirs = @{
+    BINDIR = Dir 'bindir'; INCLUDEDIR = Dir 'includedir'; INCLUDEDIR_SERVER = Dir 'includedir-server'
+    LIBDIR = Dir 'libdir'; PKGLIBDIR = Dir 'pkglibdir'; SHAREDIR = Dir 'sharedir'
+}
+foreach ($f in (Join-Path $dirs.INCLUDEDIR_SERVER 'postgres.h'), (Join-Path $dirs.LIBDIR 'postgres.lib')) {
+    if (-not (Test-Path $f)) { throw "no ${f}: the postgres package needs build 2 or later" }
 }
 
 $src = (Resolve-Path $Source).Path
@@ -25,7 +33,7 @@ $src = (Resolve-Path $Source).Path
 Push-Location $src
 try {
     $env:PGROOT = $pg
-    nmake /NOLOGO /F Makefile.win
+    nmake /NOLOGO /F Makefile.win @($dirs.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" })
 } finally { Pop-Location }
 
 if (Test-Path $Out) { Remove-Item -Recurse -Force $Out }
