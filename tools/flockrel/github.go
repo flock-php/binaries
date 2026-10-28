@@ -73,6 +73,20 @@ func getJSON(url string, v any) error {
 	return json.NewDecoder(resp.Body).Decode(v)
 }
 
+// getText fetches a page (a download directory listing).
+func getText(url string) (string, error) {
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("GET %s: %s", url, resp.Status)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	return string(body), err
+}
+
 // sha256Of returns the asset's SHA-256, from GitHub's digest when present, otherwise by downloading it.
 func sha256Of(a asset) (string, error) {
 	if d, ok := strings.CutPrefix(a.Digest, "sha256:"); ok && len(d) == 64 {

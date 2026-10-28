@@ -23,6 +23,8 @@ var latestFuncs = map[string]func(lines []string) (map[string]string, error){
 	"node":        latestNode,
 	"pgvector":    latestFromGitHubTags("pgvector/pgvector"),
 	"timescaledb": latestFromGitHubReleases("timescale/timescaledb"),
+	"postgis":     latestPostGIS,
+	"pgrouting":   latestFromGitHubReleases("pgRouting/pgrouting"),
 }
 
 // stableVersion matches plain release versions: 9, 30.2, 8.4.6. Not 9.2.0-rc1, not 1.0.0-alpha.80.
@@ -251,4 +253,17 @@ func latestVersions(name string, p pkgConfig) (vers []string, problems []string)
 		}
 	}
 	return vers, problems
+}
+
+// latestPostGIS reads the source releases on download.osgeo.org (postgis-3.6.4.tar.gz).
+func latestPostGIS(lines []string) (map[string]string, error) {
+	page, err := getText("https://download.osgeo.org/postgis/source/")
+	if err != nil {
+		return nil, err
+	}
+	var vs []string
+	for _, m := range regexp.MustCompile(`postgis-(\d+\.\d+\.\d+)\.tar\.gz"`).FindAllStringSubmatch(page, -1) {
+		vs = append(vs, m[1])
+	}
+	return newestPerLine(lines, vs), nil
 }

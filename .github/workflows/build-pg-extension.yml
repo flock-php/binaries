@@ -157,16 +157,22 @@ jobs:
           [[ "$PKG" =~ ^(.+)-pg([0-9]+)$ ]]
           { echo "EXT=${BASH_REMATCH[1]}"; echo "MAJOR=${BASH_REMATCH[2]}"; } >> "$GITHUB_ENV"
           bash scripts/postgres-package.sh "${BASH_REMATCH[2]}" "$PLATFORM" pg
+          # Extensions it requires (pgRouting: PostGIS), their newest published package.
+          required=()
+          for r in $(jq -r --arg p "${BASH_REMATCH[1]}" '.packages[$p].requires // [] | .[]' versions.json); do
+            required+=("$(bash scripts/pg-extension-package.sh "$r-pg${BASH_REMATCH[2]}" "$PLATFORM" required)")
+          done
+          echo "REQUIRED=${required[*]:-}" >> "$GITHUB_ENV"
       - name: Hide Homebrew
         if: runner.os == 'macOS'
         run: sudo mv /opt/homebrew /opt/homebrew.hidden
       - name: Smoke test
         if: runner.os != 'Windows'
-        run: bash scripts/smoke-pg-extension.sh "$EXT" pg "$ASSET"
+        run: bash scripts/smoke-pg-extension.sh "$EXT" pg "$ASSET" $REQUIRED
       - name: Smoke test
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./scripts/windows/smoke-pg-extension.ps1 -Extension $env:EXT -Postgres pg -Archive $env:ASSET
+        run: ./scripts/windows/smoke-pg-extension.ps1 -Extension $env:EXT -Postgres pg -Archive $env:ASSET -Required ($env:REQUIRED -split ' ' | Where-Object { $_ })
 
   publish:
     needs: [build, test]

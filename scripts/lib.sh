@@ -31,7 +31,7 @@ check_md5() {
 github_digest() {
   local auth=()
   [[ -n "${GITHUB_TOKEN:-}" ]] && auth=(-H "Authorization: Bearer $GITHUB_TOKEN")
-  curl -fsSL --retry 3 "${auth[@]}" "https://api.github.com/repos/$1/releases/tags/$2" \
+  curl -fsSL --retry 3 ${auth[@]+"${auth[@]}"} "https://api.github.com/repos/$1/releases/tags/$2" \
     | jq -r --arg n "$3" '.assets[] | select(.name == $n) | .digest // "" | sub("^sha256:"; "")'
 }
 

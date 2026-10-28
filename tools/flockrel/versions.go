@@ -85,6 +85,9 @@ type pkgConfig struct {
 	// package of its own (<name>-pg<major>, e.g. postgis-pg18), built against the postgres
 	// package of that major (build-pg-extension.yml).
 	Postgres []string `json:"postgres"`
+	// Requires names extensions this one needs installed (pgRouting: PostGIS); its smoke test
+	// loads their published package of the same major.
+	Requires []string `json:"requires"`
 }
 
 type platformConfig struct {
