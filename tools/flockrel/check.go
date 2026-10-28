@@ -150,12 +150,14 @@ var lineSources = map[string]struct {
 	"rustfs":      {github: "rustfs/rustfs"},
 	"cloudflared": {github: "cloudflare/cloudflared"},
 	"pgvector":    {github: "pgvector/pgvector"},
+	"timescaledb": {github: "timescale/timescaledb"},
 }
 
 var displayNames = map[string]string{
 	"php": "PHP", "postgres": "PostgreSQL", "mariadb": "MariaDB", "mysql": "MySQL", "mongodb": "MongoDB",
 	"redis": "Redis", "valkey": "Valkey", "node": "Node.js", "meilisearch": "Meilisearch",
 	"typesense": "Typesense", "rustfs": "RustFS", "cloudflared": "cloudflared", "pgvector": "pgvector",
+	"timescaledb": "TimescaleDB",
 }
 
 // truncate cuts a version to the parts a line has: (1.54, 1) → 1, (8.10.2, 2) → 8.10.
@@ -318,6 +320,9 @@ func check(v *versions, phpBuildScript string, src sources, now time.Time) (find
 		{"FrankenPHP", v.FrankenPHP.Version, "php/frankenphp", "", "`frankenphp.version` (then raise `frankenphp.*.build`)", ""},
 		{"static-php-cli", v.PHP.MacOS.SPC, "crazywhalecc/static-php-cli", "", "`php.macos.spc` (then raise `php.macos.build` and `frankenphp.macos.build`)", ""},
 	}
+	if cmake := envPin(v, "CMAKE_VERSION"); cmake != "" {
+		pins = append(pins, pin{"CMake", cmake, "Kitware/CMake", "", "`CMAKE_VERSION` of the PostgreSQL extensions (macOS builds only; no rebuild needed)", ""})
+	}
 	if ossl := opensslPin(v); ossl != "" {
 		pins = append(pins, pin{"OpenSSL", ossl, "openssl/openssl", "openssl-", "`OPENSSL_VERSION` of postgres and mariadb (then raise their macOS and Linux `build`)", truncate(ossl, 2)})
 	}
@@ -417,4 +422,14 @@ func slicesContains(s []string, x string) bool {
 		}
 	}
 	return false
+}
+
+// envPin is the first package's value of an env setting that several packages pin alike.
+func envPin(v *versions, key string) string {
+	for _, pkg := range v.packageNames() {
+		if value := v.Packages[pkg].Env[key]; value != "" {
+			return value
+		}
+	}
+	return ""
 }

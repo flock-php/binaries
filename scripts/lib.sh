@@ -84,3 +84,33 @@ node_release_info() {
   jq -n --argjson lts "$lts" '{lts: $lts}' >"$2"
   echo "✓ $(basename "$2"): LTS $lts"
 }
+
+# macos_cmake <dir>: a CMake of its own in <dir> (CMAKE_VERSION), printing its path. Homebrew's
+# would find Homebrew's libraries, which a user's Mac doesn't have.
+macos_cmake() {
+  local dir="$1" v="${CMAKE_VERSION:?CMAKE_VERSION is required}"
+  if [[ ! -x "$dir/CMake.app/Contents/bin/cmake" ]]; then
+    mkdir -p "$dir"
+    curl -fsSL --retry 3 "https://github.com/Kitware/CMake/releases/download/v$v/cmake-$v-macos-universal.tar.gz" \
+      | tar -xz -C "$dir" --strip-components 1
+  fi
+  echo "$dir/CMake.app/Contents/bin/cmake"
+}
+
+# pg_collect <stage> <pg_config> <out>: what `make install DESTDIR=<stage>` put into PostgreSQL's
+# folders, in the layout Flock links: modules into <out>/lib, control and SQL files into
+# <out>/extension. CMake builds name modules .so on macOS too, where PostgreSQL 16+ loads .dylib.
+pg_collect() {
+  local stage="$1" lib share f
+  lib="$1$("$2" --pkglibdir)" share="$1$("$2" --sharedir)"
+  mkdir -p "$3/lib" "$3/extension"
+  for f in "$lib"/*.so "$lib"/*.dylib; do
+    [[ -f "$f" ]] || continue
+    if [[ "$(uname -s)" == Darwin && "$f" == *.so && "$("$2" --version)" != *" 1"[45]* ]]; then
+      cp "$f" "$3/lib/$(basename "${f%.so}").dylib"
+    else
+      cp "$f" "$3/lib/"
+    fi
+  done
+  cp "$share/extension/"* "$3/extension/"
+}

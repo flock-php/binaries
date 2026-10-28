@@ -22,6 +22,7 @@ var latestFuncs = map[string]func(lines []string) (map[string]string, error){
 	"cloudflared": latestFromGitHubReleases("cloudflare/cloudflared"),
 	"node":        latestNode,
 	"pgvector":    latestFromGitHubTags("pgvector/pgvector"),
+	"timescaledb": latestFromGitHubReleases("timescale/timescaledb"),
 }
 
 // stableVersion matches plain release versions: 9, 30.2, 8.4.6. Not 9.2.0-rc1, not 1.0.0-alpha.80.
