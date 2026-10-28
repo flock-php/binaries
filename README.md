@@ -20,7 +20,7 @@ vendor's own binaries, checked against the vendor's checksum or signature.
 | `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | built: as on macOS | PHP 8.2–8.5 |
 | `postgres` | built: server, client tools (psql, pg_dump, …), contrib, headers and PGXS | built | built | 14–18 |
 | `pgvector-pg<major>` | built against `postgres` | built with MSVC against `postgres` | built against `postgres` | 0.8, for PostgreSQL 14–18 |
-| `timescaledb-pg<major>` | built against `postgres`, with the TSL part | mirrored: Timescale's own build (16–18) | built against `postgres`, with the TSL part | 2, for PostgreSQL 15–18 |
+| `timescaledb-pg<major>` | built against `postgres`, with the TSL part | mirrored: Timescale's own build | built against `postgres`, with the TSL part | 2, for PostgreSQL 16–18 |
 | `mariadb` | built | mirrored | built | 10.11, 11.4, 11.8, 12.3 |
 | `mysql` | mirrored | mirrored | mirrored, with libaio and libnuma built here (below) | 8.0, 8.4, 9.7 |
 | `mongodb` | mirrored | mirrored | mirrored: the Ubuntu 24.04 build (22.04's for 7.0) | 7.0, 8.0, 9.0 |
@@ -104,7 +104,8 @@ TimescaleDB is complete and unmodified: the Apache-2.0 part and the part under t
 standalone form and not be offered as a database service. On Windows it is Timescale's own
 build, checked against the SHA-256 GitHub recorded for it (`packages/timescaledb/windows/fetch.sh`).
 It has to be preloaded (`shared_preload_libraries=timescaledb`); Flock does that, with
-`timescaledb.telemetry_level=off`.
+`timescaledb.telemetry_level=off`. TimescaleDB supports PostgreSQL 16–18 since 2.29 (its
+CMakeLists.txt still mentions 15, but the code refuses it).
 
 ### Package layouts
 

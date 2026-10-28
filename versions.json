@@ -64,10 +64,10 @@
     },
     "timescaledb": {
       "lines": ["2"],
-      "postgres": ["15", "16", "17", "18"],
+      "postgres": ["16", "17", "18"],
       "platforms": {
         "macos-arm64": { "how": "build", "build": 1 },
-        "windows-x64": { "how": "build", "build": 1, "postgres": ["16", "17", "18"] },
+        "windows-x64": { "how": "build", "build": 1 },
         "linux-x64": { "how": "build", "build": 1 },
         "linux-arm64": { "how": "build", "build": 1 }
       },
