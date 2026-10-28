@@ -50,8 +50,8 @@ make install
 make -C contrib install
 echo "::endgroup::"
 
-# Headers, static libraries and pkg-config files are only for building against PostgreSQL.
-rm -rf "$OUT/include" "$OUT/lib/pkgconfig" "$OUT/share/doc" "$OUT/share/man"
+# The headers and PGXS stay, so extensions can be built against this PostgreSQL (pg_config).
+rm -rf "$OUT/lib/pkgconfig" "$OUT/share/doc" "$OUT/share/man"
 find "$OUT/lib" -name '*.a' -delete
 bash "$ROOT/scripts/macos/relocate.sh" "$OUT" "$OUT"
 

@@ -56,6 +56,20 @@ case "$PKG" in
     check "contrib extensions (pgcrypto, uuid-ossp, pg_trgm, hstore, citext)" "${psql[@]}" \
       -c 'create extension pgcrypto; create extension "uuid-ossp"; create extension pg_trgm; create extension hstore; create extension citext' \
       -c "select digest('flock', 'sha256'), uuid_generate_v4(), gen_random_uuid(), similarity('flock', 'block'), 'a=>1'::hstore, 'A'::citext = 'a'"
+    # Extensions build against the package with its own pg_config (PGXS), into a folder of their
+    # own, and load from there through symlinks, the way Flock links them.
+    mkdir -p "$tmp/hello" "$tmp/custom"
+    printf '#include "postgres.h"\n#include "fmgr.h"\nPG_MODULE_MAGIC;\nPG_FUNCTION_INFO_V1(hello);\nDatum hello(PG_FUNCTION_ARGS) { PG_RETURN_INT32(42); }\n' >"$tmp/hello/hello.c"
+    printf "default_version = '1.0'\nmodule_pathname = '\$libdir/hello'\nrelocatable = true\n" >"$tmp/hello/hello.control"
+    printf "CREATE FUNCTION hello() RETURNS int AS 'MODULE_PATHNAME' LANGUAGE C;\n" >"$tmp/hello/hello--1.0.sql"
+    printf 'MODULES = hello\nEXTENSION = hello\nDATA = hello--1.0.sql\nPGXS := $(shell $(PG_CONFIG) --pgxs)\ninclude $(PGXS)\n' >"$tmp/hello/Makefile"
+    check "PGXS build" bash -c "make -C '$tmp/hello' PG_CONFIG='$D/bin/pg_config' && make -C '$tmp/hello' install PG_CONFIG='$D/bin/pg_config' pkglibdir='$tmp/custom/lib' datadir='$tmp/custom'"
+    lib="$("$D/bin/pg_config" --pkglibdir)" share="$("$D/bin/pg_config" --sharedir)"
+    for f in "$tmp"/custom/lib/* "$tmp"/custom/extension/*; do
+      [[ "$f" == */lib/* ]] && ln -s "$f" "$lib/" || ln -s "$f" "$share/extension/"
+    done
+    hello() { [[ "$("${psql[@]}" -c 'create extension hello' -c 'select hello()' | tail -1)" == 42 ]]; }
+    check "extension built with PGXS" hello
     check "createdb" "$D/bin/createdb" -h 127.0.0.1 -p 54329 -U postgres flock
     check "pg_dump | pg_restore" bash -c "'$D/bin/pg_dump' -h 127.0.0.1 -p 54329 -U postgres -Fc postgres >'$tmp/dump' && '$D/bin/pg_restore' -l '$tmp/dump' >/dev/null"
     check "pg_ctl stop" "$D/bin/pg_ctl" stop -D "$data" -m fast
