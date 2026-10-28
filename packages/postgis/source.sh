@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Downloads the source of PostGIS and of the libraries the package bundles, each checked against
-# what upstream publishes: PostGIS and PROJ (MD5 files on download.osgeo.org), GEOS and json-c
+# what upstream publishes: PostGIS (MD5 file on download.osgeo.org, or its git tag where a release
+# has none) and PROJ (MD5 file), GEOS and json-c
 # (the SHA-256 GitHub recorded for the release asset), SQLite (SHA3-256 on its download page) and
 # libxml2 (GNOME's .sha256sum), the last two for Linux, where they are linked in. The folder is
 # what the build unpacks and what is published as the package's source (GPL-2.0, GEOS LGPL).
@@ -12,8 +13,17 @@ V="${1:?usage: source.sh <version> <dir>}"; DIR="${2:?usage: source.sh <version>
 rm -rf "$DIR" && mkdir -p "$DIR" && cd "$DIR"
 
 f="postgis-$V.tar.gz"
-fetch "https://download.osgeo.org/postgis/source/$f" "$f"
-check_md5 "$f" "$(fetch_text "https://download.osgeo.org/postgis/source/$f.md5" | cut -d' ' -f1)"
+if md5="$(fetch_text "https://download.osgeo.org/postgis/source/$f.md5" 2>/dev/null)"; then
+  fetch "https://download.osgeo.org/postgis/source/$f" "$f"
+  check_md5 "$f" "$(cut -d' ' -f1 <<<"$md5")"
+else
+  # Some releases have no .md5 (3.6.2): their source is the release tag instead, cloned (git
+  # checks every object by its hash). It has no generated configure: only what OSGeo builds for
+  # Windows uses such a release, which publishes this source and doesn't build from it.
+  git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$V" https://github.com/postgis/postgis.git "postgis-$V"
+  echo "postgis $V: no checksum on download.osgeo.org, the git tag instead: commit $(git -C "postgis-$V" rev-parse HEAD)"
+  tar --exclude .git -czf "postgis-$V-git.tar.gz" "postgis-$V" && rm -rf "postgis-$V"
+fi
 
 f="geos-$GEOS_VERSION.tar.bz2"
 fetch "https://github.com/libgeos/geos/releases/download/$GEOS_VERSION/$f" "$f"
