@@ -7,6 +7,7 @@
 #   php-exts-windows    extension packs for Windows PHP, one per minor (build-php-exts-windows.yml)
 #   frankenphp-windows  FrankenPHP for Windows (build-frankenphp-windows.yml)
 #   builds     services built from source: PostgreSQL, MariaDB (macOS, Linux), Valkey, Redis (build-service.yml)
+#   extensions PostgreSQL extensions, one package per major, after postgres (build-pg-extension.yml)
 #   mirrors    mirrored from the vendor: PHP for Windows, MySQL, MongoDB, Node.js, ... (mirror.yml)
 name: Release
 
@@ -39,6 +40,7 @@ jobs:
       php_exts_windows: ${{ steps.plan.outputs.php_exts_windows }}
       frankenphp_windows: ${{ steps.plan.outputs.frankenphp_windows }}
       builds: ${{ steps.plan.outputs.builds }}
+      extensions: ${{ steps.plan.outputs.extensions }}
       mirrors: ${{ steps.plan.outputs.mirrors }}
     steps:
       - uses: actions/checkout@v7
@@ -133,6 +135,25 @@ jobs:
       platform: ${{ matrix.platform }}
       publish: true
 
+  # After the services: an extension is built against the postgres package of its major, which
+  # this run may just have published (a new build). Also when a service failed.
+  extensions:
+    needs: [plan, builds]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.extensions != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.extensions) }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-pg-extension.yml
+    with:
+      package: ${{ matrix.package }}
+      version: ${{ matrix.version }}
+      platform: ${{ matrix.platform }}
+      publish: true
+
   mirrors:
     needs: plan
     if: needs.plan.outputs.mirrors != '[]'
@@ -151,7 +172,7 @@ jobs:
       publish: true
 
   manifest:
-    needs: [plan, php-macos, php-linux, php-exts-windows, frankenphp-windows, builds, mirrors]
+    needs: [plan, php-macos, php-linux, php-exts-windows, frankenphp-windows, builds, extensions, mirrors]
     # Also after failed builds: whatever did get published belongs in the manifests.
     if: always() && needs.plan.result == 'success'
     permissions:

@@ -204,7 +204,7 @@ func lineOf(v *versions, pkg, version string) string {
 		return version
 	}
 	best := ""
-	if p, ok := v.Packages[pkg]; ok {
+	if _, p, ok := v.configOf(pkg); ok {
 		for _, l := range p.Lines {
 			if inLine(version, l) && len(l) > len(best) {
 				best = l

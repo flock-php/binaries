@@ -9,8 +9,20 @@ set -euo pipefail
 PKG="$1"; V="$2"; ASSET="$3"; shift 3
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TAG="$PKG-$V"
+# A PostgreSQL extension's package (postgis-pg18) has the settings of its extension (postgis).
+CONFIG="$PKG"
+if [[ "$PKG" =~ ^(.+)-pg([0-9]+)$ ]] && [[ "$(jq -r --arg p "${BASH_REMATCH[1]}" '.packages[$p].postgres // empty' "$ROOT/versions.json")" ]]; then
+  CONFIG="${BASH_REMATCH[1]}" MAJOR="${BASH_REMATCH[2]}"
+fi
 
 title() {
+  if [[ "$CONFIG" != "$PKG" ]]; then
+    case "$CONFIG" in
+      pgvector) echo -n pgvector ;; postgis) echo -n PostGIS ;; pgrouting) echo -n pgRouting ;; timescaledb) echo -n TimescaleDB ;; *) echo -n "$CONFIG" ;;
+    esac
+    echo " for PostgreSQL $MAJOR"
+    return
+  fi
   case "$PKG" in
     postgres) echo PostgreSQL ;; mariadb) echo MariaDB ;; mysql) echo MySQL ;; mongodb) echo MongoDB ;;
     redis) echo Redis ;; valkey) echo Valkey ;; meilisearch) echo Meilisearch ;; typesense) echo Typesense ;;
@@ -41,12 +53,18 @@ if ! gh release view "$TAG" >/dev/null 2>&1; then
 fi
 
 assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
-if [[ "$(jq -r --arg p "$PKG" '.packages[$p].publish_source // false' "$ROOT/versions.json")" == true ]]; then
+if [[ "$(jq -r --arg p "$CONFIG" '.packages[$p].publish_source // false' "$ROOT/versions.json")" == true ]]; then
   ext=tar.gz; [[ "$PKG" == postgres ]] && ext=tar.bz2
   src="$PKG-$V-source.$ext"
   if ! grep -qx "$src" <<<"$assets"; then
     tmp="$(mktemp -d)"
-    bash "$ROOT/packages/$PKG/source.sh" "$V" "$tmp/$src"
+    if [[ "$CONFIG" != "$PKG" ]]; then
+      # An extension's source.sh fetches into a folder, the one its build uses.
+      bash "$ROOT/packages/$CONFIG/source.sh" "$V" "$tmp/src" >/dev/null
+      tar -C "$tmp" --exclude .git -czf "$tmp/$src" src
+    else
+      bash "$ROOT/packages/$CONFIG/source.sh" "$V" "$tmp/$src"
+    fi
     upload_once "$tmp/$src"
   fi
 fi

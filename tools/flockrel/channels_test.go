@@ -163,8 +163,10 @@ func TestReleaseInfo(t *testing.T) {
 }
 
 func TestLineOf(t *testing.T) {
-	v := &versions{Packages: map[string]pkgConfig{"redis": {Lines: []string{"8.4", "8.10"}}, "node": {Lines: []string{"22"}}}}
+	v := &versions{Packages: map[string]pkgConfig{"redis": {Lines: []string{"8.4", "8.10"}}, "node": {Lines: []string{"22"}},
+		"postgis": {Lines: []string{"3.6"}, Postgres: []string{"17", "18"}}}}
 	for _, c := range [][3]string{
+		{"postgis-pg18", "3.6.4", "3.6"}, {"postgis-pg14", "3.6.4", "3.6"}, // an extension's packages share its lines
 		{"php", "8.6.0RC1", "8.6"}, {"frankenphp", "8.4.26", "8.4"}, {"php-exts", "8.4", "8.4"},
 		{"redis", "8.10.2", "8.10"}, {"redis", "8.4.7", "8.4"}, {"node", "22.23.3", "22"},
 		{"redis", "8.12.0", "8.12"}, // not configured yet
@@ -172,5 +174,40 @@ func TestLineOf(t *testing.T) {
 		if got := lineOf(v, c[0], c[1]); got != c[2] {
 			t.Errorf("lineOf(%s, %s) = %s, want %s", c[0], c[1], got, c[2])
 		}
+	}
+}
+
+func TestExtensionPackages(t *testing.T) {
+	v := &versions{Packages: map[string]pkgConfig{
+		"postgres": {Lines: []string{"18"}},
+		"timescaledb": {Lines: []string{"2"}, Postgres: []string{"15", "16", "17", "18"},
+			Platforms: map[string]platformConfig{"windows-x64": {How: "build", Build: 1, Postgres: []string{"16", "17", "18"}}, "linux-x64": {How: "build", Build: 1}}},
+	}}
+	for _, c := range []struct {
+		pkg, name string
+		ok        bool
+	}{{"timescaledb-pg18", "timescaledb", true}, {"timescaledb", "timescaledb", true}, {"postgres", "postgres", true}, {"postgres-pg18", "", false}, {"nope-pg18", "", false}} {
+		if name, _, ok := v.configOf(c.pkg); name != c.name || ok != c.ok {
+			t.Errorf("configOf(%s) = %s, %v", c.pkg, name, ok)
+		}
+	}
+	p := v.Packages["timescaledb"]
+	if got := p.majors("windows-x64"); len(got) != 3 || got[0] != "16" {
+		t.Errorf("windows majors %v", got)
+	}
+	if got := p.majors("linux-x64"); len(got) != 4 {
+		t.Errorf("linux majors %v", got)
+	}
+	if got := v.Packages["postgres"].majors("linux-x64"); got != nil {
+		t.Errorf("postgres is no extension: %v", got)
+	}
+	mirrored := v.Packages["timescaledb"]
+	mirrored.Platforms = map[string]platformConfig{"windows-x64": {How: "mirror", Build: 1}}
+	latestFuncs["timescaledb"] = nil
+	defer delete(latestFuncs, "timescaledb")
+	bad := &versions{Packages: map[string]pkgConfig{"timescaledb": mirrored}}
+	bad.Channels.PatchHours, bad.Channels.BetaAfterDays = 1, 1
+	if err := bad.check(); err == nil {
+		t.Error("a mirrored extension passed the check")
 	}
 }
