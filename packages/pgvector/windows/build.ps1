@@ -19,10 +19,11 @@ $pg = (Resolve-Path $Postgres).Path
 # Where this PostgreSQL has its files (include\postgresql\server, lib\postgresql, ...): pgvector's
 # Makefile.win assumes include\server and lib, so they are given to nmake.
 $pgConfig = Join-Path $pg 'bin/pg_config.exe'
-function Dir($what) { (& $pgConfig "--$what").Trim() }
+# Not named Dir: that is an alias of Get-ChildItem, and aliases win over functions.
+function Get-PgDir($what) { (& $pgConfig "--$what").Trim() }
 $dirs = @{
-    BINDIR = Dir 'bindir'; INCLUDEDIR = Dir 'includedir'; INCLUDEDIR_SERVER = Dir 'includedir-server'
-    LIBDIR = Dir 'libdir'; PKGLIBDIR = Dir 'pkglibdir'; SHAREDIR = Dir 'sharedir'
+    BINDIR = Get-PgDir 'bindir'; INCLUDEDIR = Get-PgDir 'includedir'; INCLUDEDIR_SERVER = Get-PgDir 'includedir-server'
+    LIBDIR = Get-PgDir 'libdir'; PKGLIBDIR = Get-PgDir 'pkglibdir'; SHAREDIR = Get-PgDir 'sharedir'
 }
 foreach ($f in (Join-Path $dirs.INCLUDEDIR_SERVER 'postgres.h'), (Join-Path $dirs.LIBDIR 'postgres.lib')) {
     if (-not (Test-Path $f)) { throw "no ${f}: the postgres package needs build 2 or later" }
