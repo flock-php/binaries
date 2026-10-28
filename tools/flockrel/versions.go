@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -80,11 +81,42 @@ type pkgConfig struct {
 	Env       map[string]string         `json:"env"`
 	// PublishSource also uploads the upstream source tarball to the release (GPL, SSPL, AGPL).
 	PublishSource bool `json:"publish_source"`
+	// Postgres makes the package a PostgreSQL extension: the majors it is built for, each a
+	// package of its own (<name>-pg<major>, e.g. postgis-pg18), built against the postgres
+	// package of that major (build-pg-extension.yml).
+	Postgres []string `json:"postgres"`
 }
 
 type platformConfig struct {
 	How   string `json:"how"` // "build" from source, or "mirror" the upstream binaries
 	Build int    `json:"build"`
+	// Postgres replaces the extension's majors on this platform, where upstream has fewer.
+	Postgres []string `json:"postgres"`
+}
+
+// majors are the PostgreSQL majors an extension is built for on a platform.
+func (p pkgConfig) majors(platform string) []string {
+	if c, ok := p.Platforms[platform]; ok && c.Postgres != nil {
+		return c.Postgres
+	}
+	return p.Postgres
+}
+
+// extensionPackage splits an extension's package name: postgis-pg18 → postgis, 18.
+var extensionPackage = regexp.MustCompile(`^(.+)-pg(\d+)$`)
+
+// configOf returns the versions.json entry a published package comes from: its own, or for an
+// extension's package (postgis-pg18) the extension's (postgis).
+func (v *versions) configOf(pkg string) (name string, p pkgConfig, ok bool) {
+	if p, ok := v.Packages[pkg]; ok {
+		return pkg, p, true
+	}
+	if m := extensionPackage.FindStringSubmatch(pkg); m != nil {
+		if p, ok := v.Packages[m[1]]; ok && len(p.Postgres) > 0 {
+			return m[1], p, true
+		}
+	}
+	return "", pkgConfig{}, false
 }
 
 // platforms are the platforms packages are published for, in the order they are planned.
@@ -127,6 +159,9 @@ func (v *versions) check() error {
 			}
 			if c.Build < 1 {
 				return fmt.Errorf("versions.json: %s %s: build must be >= 1", name, platform)
+			}
+			if len(p.majors(platform)) > 0 && c.How != "build" {
+				return fmt.Errorf("versions.json: %s %s: an extension is built (or repackaged) against Flock's postgres, how must be build", name, platform)
 			}
 		}
 	}

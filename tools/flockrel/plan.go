@@ -26,6 +26,7 @@ type build struct {
 //	php_exts_windows=[{"package":"php-exts","version":"8.4","platform":"windows-x64","build":1}, ...]
 //	frankenphp_windows=[{"package":"frankenphp","version":"8.4.26","platform":"windows-x64","build":1}, ...]
 //	builds=[{"package":"postgres","version":"18.6","platform":"windows-x64","build":1}, ...]
+//	extensions=[{"package":"postgis-pg18","version":"3.6.4","platform":"linux-x64","build":1}, ...]
 //	mirrors=[{"package":"mysql","version":"8.4.11","platform":"macos-arm64","build":1}, ...]
 //	any=true|false
 //
@@ -71,7 +72,7 @@ func runPlan(args []string) error {
 	}
 
 	phpMacOS, phpLinux, phpExtsWindows, frankenWindows := []build{}, []build{}, []build{}, []build{}
-	builds, mirrors := []build{}, []build{}
+	builds, extensions, mirrors := []build{}, []build{}, []build{}
 
 	// PHP versions per minor: php.net for macOS (built from source), windows.php.net for Windows
 	// (mirrored, and the base of the extension packs and FrankenPHP), which can trail by a day.
@@ -209,6 +210,15 @@ func runPlan(args []string) error {
 				if !ok {
 					continue
 				}
+				// An extension: one package per PostgreSQL major, built after postgres (release.yml).
+				if majors := p.majors(platform); len(majors) > 0 {
+					for _, major := range majors {
+						if b := (build{Package: name + "-pg" + major, Version: ver, Platform: platform, Build: c.Build}); needed(b) {
+							extensions = append(extensions, b)
+						}
+					}
+					continue
+				}
 				b := build{Package: name, Version: ver, Platform: platform, Build: c.Build}
 				if !needed(b) {
 					continue
@@ -226,11 +236,11 @@ func runPlan(args []string) error {
 	for _, o := range []struct {
 		name string
 		list []build
-	}{{"php_macos", phpMacOS}, {"php_linux", phpLinux}, {"php_exts_windows", phpExtsWindows}, {"frankenphp_windows", frankenWindows}, {"builds", builds}, {"mirrors", mirrors}} {
+	}{{"php_macos", phpMacOS}, {"php_linux", phpLinux}, {"php_exts_windows", phpExtsWindows}, {"frankenphp_windows", frankenWindows}, {"builds", builds}, {"extensions", extensions}, {"mirrors", mirrors}} {
 		j, _ := json.Marshal(o.list)
 		fmt.Fprintf(&out, "%s=%s\n", o.name, j)
 	}
-	fmt.Fprintf(&out, "any=%t\n", len(phpMacOS)+len(phpLinux)+len(phpExtsWindows)+len(frankenWindows)+len(builds)+len(mirrors) > 0)
+	fmt.Fprintf(&out, "any=%t\n", len(phpMacOS)+len(phpLinux)+len(phpExtsWindows)+len(frankenWindows)+len(builds)+len(extensions)+len(mirrors) > 0)
 	fmt.Print(out.String())
 	if path := os.Getenv("GITHUB_OUTPUT"); path != "" {
 		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)

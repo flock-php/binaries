@@ -1,0 +1,179 @@
+# Builds one release of a PostgreSQL extension for one PostgreSQL major and one platform
+# (packages/<extension>/build.sh on macOS and Linux, packages/<extension>/windows/build.ps1), against
+# Flock's published postgres package of that major (scripts/postgres-package.sh), checks it
+# (portability on macOS and Linux), smoke-tests it in that postgres on a clean runner, and publishes
+# it as <extension>-pg<major>-<version>-build<N>-<platform>.<ext> on the
+# <extension>-pg<major>-<version> release, next to the upstream source when the license asks for it.
+# Called by release.yml (after postgres) for every version without that build yet; run it by hand to test.
+# Nothing is published unless every check passed, and a published asset is never replaced.
+name: Build PostgreSQL extension
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        type: string
+        required: true
+      version:
+        type: string
+        required: true
+      platform:
+        type: string
+        required: true
+      publish:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package, <extension>-pg<major> (e.g. pgvector-pg18)
+        required: true
+      version:
+        description: Upstream version of the extension
+        required: true
+      platform:
+        description: Platform
+        type: choice
+        options: [macos-arm64, windows-x64, linux-x64, linux-arm64]
+      publish:
+        description: Publish the package as a release asset
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  PKG: ${{ inputs.package }}
+  VERSION: ${{ inputs.version }}
+  PLATFORM: ${{ inputs.platform }}
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  build:
+    name: build ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
+    runs-on: ${{ fromJSON('{"windows-x64":"windows-2022","macos-arm64":"macos-15","linux-x64":"ubuntu-24.04","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] }}
+    timeout-minutes: 120
+    outputs:
+      asset: ${{ steps.config.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: config
+        shell: bash
+        run: |
+          [[ "$PKG" =~ ^(.+)-pg([0-9]+)$ ]] || { echo "::error::$PKG is not <extension>-pg<major>"; exit 1; }
+          ext="${BASH_REMATCH[1]}" major="${BASH_REMATCH[2]}"
+          build="$(jq -r --arg p "$ext" --arg pl "$PLATFORM" '.packages[$p].platforms[$pl] | select(.how == "build") | .build' versions.json)"
+          [[ -n "$build" ]] || { echo "::error::versions.json doesn't build $ext for $PLATFORM"; exit 1; }
+          ext_file=tar.gz; [[ "$PLATFORM" == windows-* ]] && ext_file=zip
+          { echo "EXT=$ext"; echo "MAJOR=$major"; echo "BUILD=$build"; } >> "$GITHUB_ENV"
+          echo "asset=$PKG-$VERSION-build$build-$PLATFORM.$ext_file" >> "$GITHUB_OUTPUT"
+          jq -r --arg p "$ext" '.packages[$p].env // {} | to_entries[] | "\(.key)=\(.value)"' versions.json >> "$GITHUB_ENV"
+
+      - name: PostgreSQL ${{ inputs.package }}
+        shell: bash
+        run: echo "PG_VERSION=$(bash scripts/postgres-package.sh "$MAJOR" "$PLATFORM" pg)" | tee -a "$GITHUB_ENV"
+
+      - name: Build
+        if: runner.os == 'macOS'
+        run: MACOSX_DEPLOYMENT_TARGET="$MIN_OS" bash "packages/$EXT/build.sh" "$VERSION" pg out
+      - name: Portability (otool)
+        if: runner.os == 'macOS'
+        run: bash scripts/verify-macos.sh out "$MIN_OS" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Build tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y --no-install-recommends cmake bison flex patchelf
+      - name: Build
+        if: runner.os == 'Linux'
+        run: bash "packages/$EXT/build.sh" "$VERSION" pg out
+      - name: Portability (readelf)
+        if: runner.os == 'Linux'
+        run: bash scripts/verify-linux.sh out | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      # Its own bash step: run from PowerShell inside build.ps1, Git's bash never returned.
+      - name: Source
+        if: runner.os == 'Windows'
+        shell: bash
+        run: bash "packages/$EXT/source.sh" "$VERSION" "$EXT-work/src"
+      - name: Build
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./packages/$env:EXT/windows/build.ps1 -Version $env:VERSION -Source "$env:EXT-work/src" -Postgres pg -Out out
+
+      - name: Package
+        shell: bash
+        env:
+          ASSET: ${{ steps.config.outputs.asset }}
+        run: |
+          [[ -d out ]] || { echo "::error::no build for $PKG on $PLATFORM"; exit 1; }
+          jq -n --arg package "$PKG" --arg version "$VERSION" --argjson build "$BUILD" --arg platform "$PLATFORM" \
+                --arg extension "$EXT" --arg postgres "$PG_VERSION" \
+                --arg commit "$GITHUB_SHA" --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                --argjson env "$(jq --arg p "$EXT" '.packages[$p].env // {}' versions.json)" \
+            '{package: $package, version: $version, build: $build, platform: $platform, built: $built,
+              extension: $extension, postgres: $postgres, commit: $commit, settings: $env}' > out/flock-package.json
+          if [[ "$ASSET" == *.zip ]]; then
+            (cd out && 7z a -tzip -bd "../$ASSET" . >/dev/null)
+          else
+            tar -C out -czf "$ASSET" .
+          fi
+          echo "$(sha256sum "$ASSET" 2>/dev/null || shasum -a 256 "$ASSET")  ($(du -h "$ASSET" | cut -f1)), built against PostgreSQL $PG_VERSION" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.config.outputs.asset }}
+          path: ${{ steps.config.outputs.asset }}
+          retention-days: 7
+
+  # A clean runner, as for the services (build-service.yml): on macOS the oldest Apple Silicon
+  # image with Homebrew moved away, on Linux a fresh one without the build's tools.
+  test:
+    name: run ${{ inputs.package }} ${{ inputs.version }} ${{ inputs.platform }}
+    needs: build
+    runs-on: ${{ fromJSON('{"windows-x64":"windows-2022","macos-arm64":"macos-14","linux-x64":"ubuntu-24.04","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] }}
+    timeout-minutes: 20
+    env:
+      ASSET: ${{ needs.build.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ASSET }}
+      # Before Homebrew is moved away: gh comes from it on macOS.
+      - name: PostgreSQL
+        shell: bash
+        run: |
+          [[ "$PKG" =~ ^(.+)-pg([0-9]+)$ ]]
+          { echo "EXT=${BASH_REMATCH[1]}"; echo "MAJOR=${BASH_REMATCH[2]}"; } >> "$GITHUB_ENV"
+          bash scripts/postgres-package.sh "${BASH_REMATCH[2]}" "$PLATFORM" pg
+      - name: Hide Homebrew
+        if: runner.os == 'macOS'
+        run: sudo mv /opt/homebrew /opt/homebrew.hidden
+      - name: Smoke test
+        if: runner.os != 'Windows'
+        run: bash scripts/smoke-pg-extension.sh "$EXT" pg "$ASSET"
+      - name: Smoke test
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/windows/smoke-pg-extension.ps1 -Extension $env:EXT -Postgres pg -Archive $env:ASSET
+
+  publish:
+    needs: [build, test]
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      ASSET: ${{ needs.build.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ASSET }}
+      - run: bash scripts/publish.sh "$PKG" "$VERSION" "$ASSET"

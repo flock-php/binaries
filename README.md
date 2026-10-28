@@ -18,7 +18,8 @@ vendor's own binaries, checked against the vendor's checksum or signature.
 | `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | built: as on macOS, against glibc | macOS and Linux 8.1–8.5, Windows 7.4–8.5 |
 | `php-exts` | – | built: extension DLLs for the Windows build (below) | – | one pack per Windows minor |
 | `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | built: as on macOS | PHP 8.2–8.5 |
-| `postgres` | built: server, client tools (psql, pg_dump, …), contrib | built | built | 14–18 |
+| `postgres` | built: server, client tools (psql, pg_dump, …), contrib, headers and PGXS | built | built | 14–18 |
+| `pgvector-pg<major>` | built against `postgres` | built with MSVC against `postgres` | built against `postgres` | 0.8, for PostgreSQL 14–18 |
 | `mariadb` | built | mirrored | built | 10.11, 11.4, 11.8, 12.3 |
 | `mysql` | mirrored | mirrored | mirrored, with libaio and libnuma built here (below) | 8.0, 8.4, 9.7 |
 | `mongodb` | mirrored | mirrored | mirrored: the Ubuntu 24.04 build (22.04's for 7.0) | 7.0, 8.0, 9.0 |
@@ -75,6 +76,26 @@ capture (queries, logs, views, jobs and dumps) loads it with its own ini file an
 repository keeps the extension in `ext/`). It has no `composer.json` for php-windows-builder to
 read its configure option from, so `--enable-opentelemetry` is passed explicitly. The smoke tests check that hooks fire
 (`scripts/smoke-opentelemetry.php`), not just that the extension loads.
+
+### PostgreSQL extensions
+
+An extension (`pgvector`; PostGIS, pgRouting and TimescaleDB follow) is built for every
+PostgreSQL major in its `postgres` list in `versions.json`, as a package of its own:
+`pgvector-pg18-0.8.7-build1-linux-x64.tar.gz` on the `pgvector-pg18-0.8.7` release. Flock
+installs them per major and links their files into that major's server, so an update of either
+keeps the other. A platform can list fewer majors (`platforms.<platform>.postgres`) where upstream
+supports fewer.
+
+They are built after `postgres` in the same release run (`build-pg-extension.yml`), against
+the published `postgres` package of their major with the build `versions.json` asks for
+(`scripts/postgres-package.sh`): the same compiler, flags and headers as the server that loads
+them. The smoke test (`scripts/smoke-pg-extension.sh`, `scripts/windows/smoke-pg-extension.ps1`)
+runs them in that server the way Flock does: symlinked (copied on Windows) into it, with their
+libraries on `LD_LIBRARY_PATH` on Linux. A package has `lib/` (the modules), `extension/`
+(control and SQL files), `deps/` (libraries the modules need) and `LICENSES/`.
+
+pgvector publishes no checksums or release archives: its source is a shallow clone of the
+release tag, and the build log records the commit.
 
 ### Package layouts
 

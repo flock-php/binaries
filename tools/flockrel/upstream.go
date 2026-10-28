@@ -21,6 +21,7 @@ var latestFuncs = map[string]func(lines []string) (map[string]string, error){
 	"rustfs":      latestFromGitHubReleases("rustfs/rustfs"),
 	"cloudflared": latestFromGitHubReleases("cloudflare/cloudflared"),
 	"node":        latestNode,
+	"pgvector":    latestFromGitHubTags("pgvector/pgvector"),
 }
 
 // stableVersion matches plain release versions: 9, 30.2, 8.4.6. Not 9.2.0-rc1, not 1.0.0-alpha.80.
@@ -116,6 +117,24 @@ func latestFromGitHubReleases(repo string) func([]string) (map[string]string, er
 			}
 		}
 		return newestPerLine(lines, tags), nil
+	}
+}
+
+// latestFromGitHubTags uses the tags of a GitHub repository (<version> or v<version>), for
+// projects that tag releases without publishing GitHub releases (pgvector).
+func latestFromGitHubTags(repo string) func([]string) (map[string]string, error) {
+	return func(lines []string) (map[string]string, error) {
+		var tags []struct {
+			Name string `json:"name"`
+		}
+		if err := getJSON("https://api.github.com/repos/"+repo+"/tags?per_page=100", &tags); err != nil {
+			return nil, err
+		}
+		var vs []string
+		for _, t := range tags {
+			vs = append(vs, strings.TrimPrefix(t.Name, "v"))
+		}
+		return newestPerLine(lines, vs), nil
 	}
 }
 
