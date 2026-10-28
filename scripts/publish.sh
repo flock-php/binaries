@@ -59,7 +59,10 @@ if [[ "$(jq -r --arg p "$CONFIG" '.packages[$p].publish_source // false' "$ROOT/
   if ! grep -qx "$src" <<<"$assets"; then
     tmp="$(mktemp -d)"
     if [[ "$CONFIG" != "$PKG" ]]; then
-      # An extension's source.sh fetches into a folder, the one its build uses.
+      # An extension's source.sh fetches into a folder, the one its build uses, with the versions
+      # of what it bundles (PostGIS: GEOS, PROJ, ...) from its env.
+      while IFS='=' read -r key value; do export "$key=$value"; done \
+        < <(jq -r --arg p "$CONFIG" '.packages[$p].env // {} | to_entries[] | "\(.key)=\(.value)"' "$ROOT/versions.json")
       bash "$ROOT/packages/$CONFIG/source.sh" "$V" "$tmp/src" >/dev/null
       tar -C "$tmp" --exclude .git -czf "$tmp/$src" src
     else

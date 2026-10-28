@@ -151,13 +151,15 @@ var lineSources = map[string]struct {
 	"cloudflared": {github: "cloudflare/cloudflared"},
 	"pgvector":    {github: "pgvector/pgvector"},
 	"timescaledb": {github: "timescale/timescaledb"},
+	"postgis":     {github: "postgis/postgis"},
+	"pgrouting":   {github: "pgRouting/pgrouting"},
 }
 
 var displayNames = map[string]string{
 	"php": "PHP", "postgres": "PostgreSQL", "mariadb": "MariaDB", "mysql": "MySQL", "mongodb": "MongoDB",
 	"redis": "Redis", "valkey": "Valkey", "node": "Node.js", "meilisearch": "Meilisearch",
 	"typesense": "Typesense", "rustfs": "RustFS", "cloudflared": "cloudflared", "pgvector": "pgvector",
-	"timescaledb": "TimescaleDB",
+	"timescaledb": "TimescaleDB", "postgis": "PostGIS", "pgrouting": "pgRouting",
 }
 
 // truncate cuts a version to the parts a line has: (1.54, 1) → 1, (8.10.2, 2) → 8.10.
@@ -322,6 +324,16 @@ func check(v *versions, phpBuildScript string, src sources, now time.Time) (find
 	}
 	if cmake := envPin(v, "CMAKE_VERSION"); cmake != "" {
 		pins = append(pins, pin{"CMake", cmake, "Kitware/CMake", "", "`CMAKE_VERSION` of the PostgreSQL extensions (macOS builds only; no rebuild needed)", ""})
+	}
+	for _, lib := range []struct{ name, key, repo, prefix string }{
+		{"GEOS", "GEOS_VERSION", "libgeos/geos", ""},
+		{"PROJ", "PROJ_VERSION", "OSGeo/PROJ", ""},
+		{"libxml2", "LIBXML2_VERSION", "GNOME/libxml2", "v"},
+		{"Boost", "BOOST_VERSION", "boostorg/boost", "boost-"},
+	} {
+		if current := envPin(v, lib.key); current != "" {
+			pins = append(pins, pin{lib.name, current, lib.repo, lib.prefix, "`" + lib.key + "` of postgis or pgrouting (then raise their macOS and Linux `build`)", ""})
+		}
 	}
 	if ossl := opensslPin(v); ossl != "" {
 		pins = append(pins, pin{"OpenSSL", ossl, "openssl/openssl", "openssl-", "`OPENSSL_VERSION` of postgres and mariadb (then raise their macOS and Linux `build`)", truncate(ossl, 2)})
