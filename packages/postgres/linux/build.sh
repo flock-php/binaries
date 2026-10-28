@@ -47,8 +47,8 @@ make install
 make -C contrib install
 echo "::endgroup::"
 
-# Headers, static libraries and pkg-config files are only for building against PostgreSQL.
-rm -rf "$OUT/include" "$OUT/lib/pkgconfig" "$OUT/share/doc" "$OUT/share/man"
+# The headers and PGXS stay, so extensions can be built against this PostgreSQL (pg_config).
+rm -rf "$OUT/lib/pkgconfig" "$OUT/share/doc" "$OUT/share/man"
 find "$OUT/lib" -name '*.a' -delete
 find "$OUT/bin" "$OUT/lib" -type f \( -perm -u+x -o -name '*.so*' \) -exec strip --strip-unneeded {} + 2>/dev/null || true
 # The programs and libraries in lib/ (ecpg's link libpq) find libpq next to them, wherever unpacked.

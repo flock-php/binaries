@@ -44,12 +44,10 @@
     "postgres": {
       "lines": ["14", "15", "16", "17", "18"],
       "platforms": {
-        "macos-arm64": { "how": "build", "build": 1 },
-        "windows-x64": { "how": "build", "build": 1 },
-        "linux-x64": { "how": "build", "build": 1 },
-        "linux-arm64": { "how": "build", "build": 1 },
-        "linux-x64": { "how": "build", "build": 1 },
-        "linux-arm64": { "how": "build", "build": 1 }
+        "macos-arm64": { "how": "build", "build": 2 },
+        "windows-x64": { "how": "build", "build": 2 },
+        "linux-x64": { "how": "build", "build": 2 },
+        "linux-arm64": { "how": "build", "build": 2 }
       },
       "env": { "OPENSSL_VERSION": "3.5.9", "MIN_OS": "13.0" }
     },

@@ -89,7 +89,7 @@ build has `flock-package.json` at the top (what it is, how it was built) and `LI
 | `php-exts` | `ext/php_<name>.dll` into PHP's `ext\`; `*.dll` next to `php.exe` (ImageMagick) |
 | `frankenphp` (macOS, Linux) | `bin/frankenphp`, `ext/*.so` |
 | `frankenphp` (Windows) | `frankenphp.exe` next to the official PHP build of the same version |
-| `postgres` | `bin/`, `lib/`, `share/` (relocatable) |
+| `postgres` | `bin/`, `lib/`, `share/` (relocatable), `include/` and PGXS (Windows: `lib/postgres.lib`) to build extensions against it |
 | `mariadb` (macOS, Linux) | `bin/`, `scripts/mariadb-install-db`, `share/`, `lib/plugin/`; run with `--basedir` |
 | `valkey`, `redis` | `<name>-server`, `<name>-cli`, `<name>-benchmark` (Windows: with the MSYS2 DLLs) |
 | `meilisearch`, `rustfs`, `typesense`, `cloudflared` | the executable and its license |

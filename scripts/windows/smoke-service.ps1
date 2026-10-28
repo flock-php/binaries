@@ -97,6 +97,13 @@ switch ($Package) {
             Invoke-Native "$bin/psql.exe" ($psql + @('-c', 'create extension pgcrypto; create extension pg_trgm; create extension hstore; create extension citext',
                 '-c', "select encode(digest('flock', 'sha256'), 'hex'), gen_random_uuid(), similarity('flock', 'block'), 'a=>1'::hstore, 'A'::citext = 'a'")) | Out-Null
         }
+        Check 'headers and import library for extensions' {
+            $server = (Invoke-Native "$bin/pg_config.exe" @('--includedir-server')).Trim()
+            $libdir = (Invoke-Native "$bin/pg_config.exe" @('--libdir')).Trim()
+            foreach ($f in (Join-Path $server 'postgres.h'), (Join-Path $server 'fmgr.h'), (Join-Path $libdir 'postgres.lib')) {
+                if (-not (Test-Path $f)) { throw "no $f" }
+            }
+        }
         Check 'createdb' { Invoke-Native "$bin/createdb.exe" @('-h', '127.0.0.1', '-p', '54329', '-U', 'postgres', 'flock') }
         Check 'pg_dump | pg_restore' {
             Invoke-Native "$bin/pg_dump.exe" @('-h', '127.0.0.1', '-p', '54329', '-U', 'postgres', '-Fc', '-f', "$tmp/dump", 'postgres')

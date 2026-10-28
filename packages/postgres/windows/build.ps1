@@ -90,9 +90,10 @@ our `$config;
 foreach ($dll in Get-ChildItem (Join-Path $deps 'bin') -Filter '*.dll') {
     Copy-Item $dll.FullName (Join-Path $Out 'bin') -Force
 }
-# Headers, import libraries and debug symbols are only for building against PostgreSQL.
-Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $Out 'include'), (Join-Path $Out 'symbols'), (Join-Path $Out 'doc'), (Join-Path $Out 'share/doc')
-Get-ChildItem $Out -Recurse -Include '*.lib', '*.a', '*.pdb' | Remove-Item -Force
+# The headers and import libraries (postgres.lib) stay, so extensions can be built against this
+# PostgreSQL with MSVC; debug symbols and docs go.
+Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $Out 'symbols'), (Join-Path $Out 'doc'), (Join-Path $Out 'share/doc')
+Get-ChildItem $Out -Recurse -Include '*.a', '*.pdb' | Remove-Item -Force
 
 $licenses = Join-Path $Out 'LICENSES'
 New-Item -ItemType Directory -Force $licenses | Out-Null
