@@ -172,6 +172,13 @@ jobs:
       - name: Smoke test
         if: runner.os != 'Windows'
         run: bash scripts/smoke-pg-extension.sh "$EXT" pg "$ASSET" $REQUIRED
+      # Only the DLLs the package and the server bring: no MinGW or MSYS2 runtimes from the runner.
+      - name: Remove other runtimes from PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $clean = ($env:PATH -split ';' | Where-Object { $_ -and -not (Test-Path (Join-Path $_ 'msys-2.0.dll')) -and -not (Test-Path (Join-Path $_ 'libwinpthread-1.dll')) }) -join ';'
+          Add-Content $env:GITHUB_ENV "PATH=$clean"
       - name: Smoke test
         if: runner.os == 'Windows'
         shell: pwsh

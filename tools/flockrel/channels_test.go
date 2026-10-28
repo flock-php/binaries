@@ -211,3 +211,27 @@ func TestExtensionPackages(t *testing.T) {
 		t.Error("a mirrored extension passed the check")
 	}
 }
+
+func TestPlatformUpstream(t *testing.T) {
+	check := func(p pkgConfig) error {
+		latestFuncs["ext"] = func([]string) (map[string]string, error) { return nil, nil }
+		defer delete(latestFuncs, "ext")
+		v := &versions{Packages: map[string]pkgConfig{"ext": p}}
+		v.Channels.PatchHours, v.Channels.BetaAfterDays = 1, 1
+		return v.check()
+	}
+	ok := pkgConfig{Lines: []string{"3.6"}, Postgres: []string{"18"},
+		Platforms: map[string]platformConfig{"windows-x64": {How: "build", Build: 1, Upstream: "osgeo-bundle"}}}
+	if err := check(ok); err != nil {
+		t.Fatal(err)
+	}
+	unknown := ok
+	unknown.Platforms = map[string]platformConfig{"windows-x64": {How: "build", Build: 1, Upstream: "nope"}}
+	if err := check(unknown); err == nil {
+		t.Error("an unknown upstream passed")
+	}
+	notExtension := pkgConfig{Lines: []string{"1"}, Platforms: map[string]platformConfig{"windows-x64": {How: "build", Build: 1, Upstream: "osgeo-bundle"}}}
+	if err := check(notExtension); err == nil {
+		t.Error("an upstream outside an extension passed")
+	}
+}
