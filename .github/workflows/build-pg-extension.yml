@@ -99,7 +99,13 @@ jobs:
       - name: Source
         if: runner.os == 'Windows'
         shell: bash
-        run: bash "packages/$EXT/source.sh" "$VERSION" "$EXT-work/src"
+        # windows/fetch.sh, where the vendor builds for Windows (TimescaleDB): its build, checked.
+        run: |
+          if [[ -f "packages/$EXT/windows/fetch.sh" ]]; then
+            bash "packages/$EXT/windows/fetch.sh" "$VERSION" "$MAJOR" "$EXT-work/src"
+          else
+            bash "packages/$EXT/source.sh" "$VERSION" "$EXT-work/src"
+          fi
       - name: Build
         if: runner.os == 'Windows'
         shell: pwsh
