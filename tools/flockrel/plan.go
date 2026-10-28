@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -207,7 +208,7 @@ func runPlan(args []string) error {
 		for _, ver := range vers {
 			for _, platform := range platforms {
 				c, ok := p.Platforms[platform]
-				if !ok {
+				if !ok || c.Upstream != "" {
 					continue
 				}
 				// An extension: one package per PostgreSQL major, built after postgres (release.yml).
@@ -227,6 +228,28 @@ func runPlan(args []string) error {
 					builds = append(builds, b)
 				} else {
 					mirrors = append(mirrors, b)
+				}
+			}
+		}
+		// A platform with an upstream of its own (OSGeo's PostGIS bundles for Windows) has its own
+		// version, per PostgreSQL major.
+		for _, platform := range platforms {
+			c, ok := p.Platforms[platform]
+			if !ok || c.Upstream == "" {
+				continue
+			}
+			for _, major := range p.majors(platform) {
+				ver, err := upstreamFuncs[c.Upstream](name, major)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "::warning::%s for PostgreSQL %s on %s: %v\n", name, major, platform, err)
+					continue
+				}
+				if !slices.ContainsFunc(p.Lines, func(l string) bool { return inLine(ver, l) }) {
+					fmt.Fprintf(os.Stderr, "::warning::%s %s for PostgreSQL %s on %s is in none of its lines\n", name, ver, major, platform)
+					continue
+				}
+				if b := (build{Package: name + "-pg" + major, Version: ver, Platform: platform, Build: c.Build}); needed(b) {
+					extensions = append(extensions, b)
 				}
 			}
 		}

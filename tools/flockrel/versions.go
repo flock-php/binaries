@@ -95,6 +95,9 @@ type platformConfig struct {
 	Build int    `json:"build"`
 	// Postgres replaces the extension's majors on this platform, where upstream has fewer.
 	Postgres []string `json:"postgres"`
+	// Upstream names a version lookup of this platform's own (upstreamFuncs), per PostgreSQL
+	// major, where it is built from another release than the source's (OSGeo's Windows bundles).
+	Upstream string `json:"upstream"`
 }
 
 // majors are the PostgreSQL majors an extension is built for on a platform.
@@ -162,6 +165,12 @@ func (v *versions) check() error {
 			}
 			if c.Build < 1 {
 				return fmt.Errorf("versions.json: %s %s: build must be >= 1", name, platform)
+			}
+			if c.Upstream != "" && upstreamFuncs[c.Upstream] == nil {
+				return fmt.Errorf("versions.json: %s %s: unknown upstream %q", name, platform, c.Upstream)
+			}
+			if c.Upstream != "" && len(p.majors(platform)) == 0 {
+				return fmt.Errorf("versions.json: %s %s: an upstream of its own is per PostgreSQL major, for extensions", name, platform)
 			}
 			if len(p.majors(platform)) > 0 && c.How != "build" {
 				return fmt.Errorf("versions.json: %s %s: an extension is built (or repackaged) against Flock's postgres, how must be build", name, platform)

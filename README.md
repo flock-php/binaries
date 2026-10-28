@@ -20,8 +20,8 @@ vendor's own binaries, checked against the vendor's checksum or signature.
 | `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | built: as on macOS | PHP 8.2–8.5 |
 | `postgres` | built: server, client tools (psql, pg_dump, …), contrib, headers and PGXS | built | built | 14–18 |
 | `pgvector-pg<major>` | built against `postgres` | built with MSVC against `postgres` | built against `postgres` | 0.8, for PostgreSQL 14–18 |
-| `postgis-pg<major>` | built against `postgres`, with GEOS and PROJ | – (follows) | built against `postgres`, with GEOS and PROJ | 3.6, for PostgreSQL 14–18 |
-| `pgrouting-pg<major>` | built against `postgres` (needs `postgis`) | – (follows) | built against `postgres` (needs `postgis`) | 4, for PostgreSQL 14–18 |
+| `postgis-pg<major>` | built against `postgres`, with GEOS and PROJ | repackaged from OSGeo's bundle | built against `postgres`, with GEOS and PROJ | 3.6, for PostgreSQL 14–18 |
+| `pgrouting-pg<major>` | built against `postgres` (needs `postgis`) | repackaged from OSGeo's bundle | built against `postgres` (needs `postgis`) | 4, for PostgreSQL 14–18 |
 | `timescaledb-pg<major>` | built against `postgres`, with the TSL part | mirrored: Timescale's own build | built against `postgres`, with the TSL part | 2, for PostgreSQL 16–18 |
 | `mariadb` | built | mirrored | built | 10.11, 11.4, 11.8, 12.3 |
 | `mysql` | mirrored | mirrored | mirrored, with libaio and libnuma built here (below) | 8.0, 8.4, 9.7 |
@@ -104,6 +104,15 @@ all published with the release, as PostGIS is GPL-2.0 and GEOS LGPL. Not include
 (GDAL), SFCGAL, `ST_AsMVT`/`ST_AsGeobuf` (protobuf) and `address_standardizer`. pgRouting
 requires PostGIS (`requires` in `versions.json`): its smoke test loads the published PostGIS
 package of its major.
+
+On Windows, PostGIS and pgRouting come from OSGeo's PostGIS bundles
+(download.osgeo.org/postgis/windows), built for PostgreSQL's MSVC builds and checked against the
+MD5 OSGeo publishes. Their versions trail the source releases and differ per major, so
+`platforms.windows-x64.upstream` (`osgeo-bundle`, `tools/flockrel/osgeo.go`) looks them up per
+major: PostGIS from the bundle's name, pgRouting from its file list (read with range requests,
+without downloading the bundle). Of the bundle only the modules, their extension files, the DLLs
+they load (following their imports, `scripts/windows/repack-osgeo.ps1`) and PROJ's data are
+taken: about 30 MB instead of 280.
 
 pgvector and TimescaleDB publish no source checksums or archives: their source is a shallow
 clone of the release tag, and the build log records the commit.
