@@ -52,6 +52,11 @@ echo "::endgroup::"
 
 # The headers and PGXS stay, so extensions can be built against this PostgreSQL (pg_config).
 rm -rf "$OUT/lib/pkgconfig" "$OUT/share/doc" "$OUT/share/man"
+# PGXS compiles with -isysroot $(PG_SYSROOT), which configure set to this machine's SDK: on
+# another Mac (another Xcode) that path doesn't exist. Use whatever SDK the Mac building has.
+makefile="$("$OUT/bin/pg_config" --pgxs | sed 's|/pgxs.mk$||')/../Makefile.global"
+grep -q '^PG_SYSROOT = ' "$makefile" || { echo "::error::no PG_SYSROOT in $makefile" >&2; exit 1; }
+sed -i '' 's|^PG_SYSROOT = .*|PG_SYSROOT = $(shell xcrun --sdk macosx --show-sdk-path 2>/dev/null)|' "$makefile"
 find "$OUT/lib" -name '*.a' -delete
 bash "$ROOT/scripts/macos/relocate.sh" "$OUT" "$OUT"
 
