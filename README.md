@@ -60,7 +60,8 @@ its source).
 [php-windows-builder](https://github.com/php/php-windows-builder) against the official build of
 that minor, so they load into both `php` and `frankenphp` for Windows: apcu, igbinary, imagick
 (with ImageMagick), pcov, redis, xdebug and opentelemetry (from PHP 8.0 on, `min_php`), plus the
-MongoDB maintainers' own DLLs from PHP 8.1 on. Releases per extension, and per minor where one
+MongoDB maintainers' own DLLs from PHP 8.1 on and the PHP team's imap DLLs from PHP 8.4 on (see
+imap). Releases per extension, and per minor where one
 needs another release (xdebug 3.1 for PHP 7.4), are in `php.windows.extensions`. memcached is
 macOS only. On Windows, imagick reports its version
 as `@PACKAGE_VERSION@` (`phpversion('imagick')`), like the imagick maintainers' own Windows DLLs:
@@ -79,6 +80,20 @@ capture (queries, logs, views, jobs and dumps) loads it with its own ini file an
 repository keeps the extension in `ext/`). It has no `composer.json` for php-windows-builder to
 read its configure option from, so `--enable-opentelemetry` is passed explicitly. The smoke tests check that hooks fire
 (`scripts/smoke-opentelemetry.php`), not just that the extension loads.
+
+### imap
+
+imap left PHP's core in 8.4 for [PECL](https://pecl.php.net/package/imap). The macOS and Linux
+`php` packages have it as a shared extension, `ext/imap.so`, for every minor: 8.1–8.3 build the
+extension in php-src, 8.4 and newer the PECL release pinned in `packages/php/<platform>/build.sh`.
+Both link static-php-cli's build of the UW IMAP c-client with OpenSSL, without Kerberos (GSSAPI).
+The 8.4+ tarballs still ship `ext/imap/tests`, which static-php-cli takes for the extracted
+extension, so `build.sh` removes it first. `frankenphp` doesn't have imap: it isn't thread-safe,
+and `frankenphp.skip_extensions` leaves it out of the ZTS build.
+
+On Windows, the official builds have `php_imap.dll` up to PHP 8.3. For 8.4 and newer, the packs
+add the PHP team's own PECL DLL from downloads.php.net. Those come without a published checksum,
+so `php.windows.extensions.imap` pins the SHA-256 of each minor's zip.
 
 ### PostgreSQL extensions
 

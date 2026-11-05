@@ -72,7 +72,9 @@ jobs:
       - name: Read versions.json
         id: config
         run: |
-          jq -r '.php.linux | "SPC_VERSION=\(.spc)\nSTATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions)"' versions.json >> "$GITHUB_ENV"
+          # FrankenPHP (ZTS) leaves out frankenphp.skip_extensions: imap isn't thread-safe.
+          jq -r --arg pkg "$PKG" '(if $pkg == "frankenphp" then (.frankenphp.skip_extensions // "") | split(",") else [] end) as $skip
+            | .php.linux | "SPC_VERSION=\(.spc)\nSTATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions | split(",") - $skip | join(","))"' versions.json >> "$GITHUB_ENV"
           echo "MINOR=$(cut -d. -f1-2 <<<"$VERSION")" >> "$GITHUB_ENV"
           case "$PKG" in
             php) build="$(jq -r .php.linux.build versions.json)" ;;
@@ -145,7 +147,9 @@ jobs:
         with:
           name: ${{ env.ASSET }}
       - name: Read versions.json
-        run: jq -r '.php.linux | "STATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions)"' versions.json >> "$GITHUB_ENV"
+        run: |
+          jq -r --arg pkg "$PKG" '(if $pkg == "frankenphp" then (.frankenphp.skip_extensions // "") | split(",") else [] end) as $skip
+            | .php.linux | "STATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions | split(",") - $skip | join(","))"' versions.json >> "$GITHUB_ENV"
       - name: Smoke test
         run: |
           mkdir pkg && tar -C pkg -xzf "$ASSET"

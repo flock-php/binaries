@@ -52,6 +52,8 @@ DOWNLOAD_ARGS="${DOWNLOAD_ARGS:-} --custom-url=xdebug:https://xdebug.org/files/x
 # opentelemetry (only its hook() is used, by Flock's runtime capture): static-php-cli takes
 # whatever PECL's newest is; pin it like xdebug. Shared and not loaded by default.
 DOWNLOAD_ARGS="$DOWNLOAD_ARGS --custom-url=opentelemetry:https://pecl.php.net/get/opentelemetry-1.4.2.tgz"
+# imap (PECL from PHP 8.4 on; 8.1–8.3 build the one in php-src): pinned like opentelemetry.
+DOWNLOAD_ARGS="$DOWNLOAD_ARGS --custom-url=ext-imap:https://pecl.php.net/get/imap-1.0.3.tgz"
 
 echo "::group::static-php-cli $SPC_VERSION"
 if [[ ! -x ./spc ]]; then
@@ -121,6 +123,13 @@ for attempt in 1 2 3 4; do
   # Start clean: libraries built for an extension we dropped would otherwise be linked
   # without their dependencies. Pre-built libraries unpack quickly.
   rm -rf buildroot source/php-src
+  # PHP 8.4+ tarballs still ship ext/imap/tests although imap moved to PECL: static-php-cli then
+  # takes ext/imap as extracted and skips the PECL source. Extract php-src first and drop the
+  # leftover (8.3 and older have the full extension, with config.m4, and keep it).
+  if [[ ",$all," == *",imap,"* ]]; then
+    ./spc extract php-src --source-only
+    [[ -f source/php-src/ext/imap/config.m4 ]] || rm -rf source/php-src/ext/imap
+  fi
   ok=1
   # static-php-cli's post-build sanity checks are stricter than we need; the smoke test verifies.
   ./spc build "$STATIC_EXTS" ${pending:+--build-shared="$pending"} "${build_flags[@]}" 2>&1 | tee spc-build.out || ok=0
