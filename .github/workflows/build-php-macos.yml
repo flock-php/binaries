@@ -63,7 +63,9 @@ jobs:
       - name: Read versions.json
         id: config
         run: |
-          jq -r '.php.macos | "SPC_VERSION=\(.spc)\nMIN_OS=\(.min_os)\nSTATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions)"' versions.json >> "$GITHUB_ENV"
+          # FrankenPHP (ZTS) leaves out frankenphp.skip_extensions: imap isn't thread-safe.
+          jq -r --arg pkg "$PKG" '(if $pkg == "frankenphp" then (.frankenphp.skip_extensions // "") | split(",") else [] end) as $skip
+            | .php.macos | "SPC_VERSION=\(.spc)\nMIN_OS=\(.min_os)\nSTATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions | split(",") - $skip | join(","))"' versions.json >> "$GITHUB_ENV"
           echo "MINOR=$(cut -d. -f1-2 <<<"$VERSION")" >> "$GITHUB_ENV"
           case "$PKG" in
             php) build="$(jq -r .php.macos.build versions.json)" ;;
@@ -136,7 +138,9 @@ jobs:
           name: ${{ env.ASSET }}
       # Before Homebrew goes: jq is one of its tools.
       - name: Read versions.json
-        run: jq -r '.php.macos | "STATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions)"' versions.json >> "$GITHUB_ENV"
+        run: |
+          jq -r --arg pkg "$PKG" '(if $pkg == "frankenphp" then (.frankenphp.skip_extensions // "") | split(",") else [] end) as $skip
+            | .php.macos | "STATIC_EXTS=\(.static_extensions)\nSHARED_EXTS=\(.shared_extensions | split(",") - $skip | join(","))"' versions.json >> "$GITHUB_ENV"
       - name: Hide Homebrew
         run: sudo mv /opt/homebrew /opt/homebrew.hidden
       - name: Smoke test

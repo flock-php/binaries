@@ -2,24 +2,24 @@
   "php": {
     "macos": {
       "minors": ["8.1", "8.2", "8.3", "8.4", "8.5"],
-      "build": 2,
+      "build": 3,
       "spc": "2.8.5",
       "min_os": "13.0",
       "static_extensions": "bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,igbinary,intl,ldap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,apcu",
-      "shared_extensions": "xdebug,imagick,pcov,mongodb,memcached,opentelemetry"
+      "shared_extensions": "xdebug,imagick,pcov,mongodb,memcached,opentelemetry,imap"
     },
     "linux": {
       "minors": ["8.1", "8.2", "8.3", "8.4", "8.5"],
-      "build": 1,
+      "build": 2,
       "spc": "2.8.5",
       "static_extensions": "bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,igbinary,intl,ldap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,apcu",
-      "shared_extensions": "xdebug,imagick,pcov,mongodb,memcached,opentelemetry"
+      "shared_extensions": "xdebug,imagick,pcov,mongodb,memcached,opentelemetry,imap"
     },
     "windows": {
       "minors": ["7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"],
       "build": 1,
       "extensions": {
-        "build": 2,
+        "build": 3,
         "from_source": {
           "apcu": { "repo": "krakjoe/apcu", "ref": "v5.1.28" },
           "igbinary": { "repo": "igbinary/igbinary", "ref": "3.2.16", "refs": { "8.5": "3.2.17RC1" }, "args": "--enable-igbinary=yes" },
@@ -29,13 +29,21 @@
           "xdebug": { "repo": "xdebug/xdebug", "ref": "3.5.3", "refs": { "7.4": "3.1.6", "8.6": "3.6.0alpha1" }, "args": "--with-xdebug=shared" },
           "opentelemetry": { "repo": "open-telemetry/opentelemetry-php-instrumentation", "url": "https://pecl.php.net/package/opentelemetry", "ref": "1.4.2", "min_php": "8.0", "args": "--enable-opentelemetry" }
         },
-        "mongodb": "2.5.5"
+        "mongodb": "2.5.5",
+        "imap": {
+          "version": "1.0.3",
+          "sha256": {
+            "8.4": "999b6041b0b6120a8b62da3e4011f3a79ee6731184e16f1b2c7cf4896b48367a",
+            "8.5": "fac1258ffab3425411770fdb0b1bfdd66f51eecbf22345aa259aec4ca873c342"
+          }
+        }
       }
     }
   },
   "frankenphp": {
     "version": "1.13.0",
     "minors": ["8.2", "8.3", "8.4", "8.5"],
+    "skip_extensions": "imap",
     "macos": { "build": 2 },
     "windows": { "build": 1 },
     "linux": { "build": 1 }

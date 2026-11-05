@@ -4,6 +4,7 @@
 #   -Exts     the build jobs' artifacts, one directory ext-<name>-<minor> per extension
 #   -MongoDB  version of the MongoDB maintainers' own DLLs to add (PHP 8.1+), checked against
 #             GitHub's SHA-256 of the release asset
+# imap comes from php.windows.extensions.imap in versions.json (PHP 8.4+, the PHP team's PECL DLLs).
 # $env:EXTENSIONS lists the extensions built from source (JSON: name, repo, ref), as computed by the
 # workflow's config job from versions.json. Results go to stdout and $GITHUB_STEP_SUMMARY.
 # Usage: scripts/windows/package-php-exts.ps1 -Minor 8.4 -Exts exts -Out pkg [-MongoDB 2.5.5]
@@ -85,6 +86,22 @@ if ($MongoDB -and [version]$Minor -ge [version]'8.1') {
     Copy-Item $dll.FullName (Join-Path $extDir 'php_mongodb.dll')
     Get-RepoLicense 'mongodb/mongo-php-driver' $MongoDB 'mongodb'
     $built['mongodb'] = $MongoDB
+}
+
+# imap: the official builds have it up to PHP 8.3; from 8.4 on it's PECL's, and the PHP team's own
+# DLLs come without a published checksum, so php.windows.extensions.imap pins their SHA-256.
+$imap = $versions.php.windows.extensions.imap
+$imapSum = $imap.sha256.$Minor
+if ($imapSum) {
+    $name = "php_imap-$($imap.version)-$Minor-ts-$vs-x64.zip"
+    $zip = Join-Path $work $name
+    Invoke-WebRequest "https://downloads.php.net/~windows/pecl/releases/imap/$($imap.version)/$name" -OutFile $zip
+    $sum = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+    if ($sum -ne $imapSum) { throw "$name`: SHA-256 $sum, expected $imapSum" }
+    Expand-Archive $zip -DestinationPath (Join-Path $work 'imap')
+    Copy-Item (Join-Path $work 'imap/php_imap.dll') (Join-Path $extDir 'php_imap.dll')
+    Get-RepoLicense 'php/pecl-mail-imap' $imap.version 'imap'
+    $built['imap'] = $imap.version
 }
 
 # Load every DLL into the official build, as Flock will install it (ext\ and next to php.exe).
