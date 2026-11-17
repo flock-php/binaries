@@ -70,13 +70,19 @@ jobs:
           echo "asset=$PKG-$VERSION-build$build-$PLATFORM.$ext" >> "$GITHUB_OUTPUT"
           jq -r --arg p "$PKG" '.packages[$p].env // {} | to_entries[] | "\(.key)=\(.value)"' versions.json >> "$GITHUB_ENV"
 
-      # macOS: the static OpenSSL only changes with its version.
+      # macOS: the static OpenSSL and ICU only change with their version.
       - name: Cache OpenSSL
         if: runner.os == 'macOS' && env.OPENSSL_VERSION != ''
         uses: actions/cache@v6
         with:
           path: ${{ inputs.package }}-work/openssl
           key: openssl-${{ env.OPENSSL_VERSION }}-macos-arm64-${{ env.MIN_OS }}
+      - name: Cache ICU
+        if: runner.os == 'macOS' && env.ICU_VERSION != ''
+        uses: actions/cache@v6
+        with:
+          path: ${{ inputs.package }}-work/icu
+          key: icu-${{ env.ICU_VERSION }}-macos-arm64-${{ env.MIN_OS }}
 
       - name: Build
         if: runner.os == 'macOS'
@@ -86,13 +92,19 @@ jobs:
         if: runner.os == 'macOS'
         run: bash scripts/verify-macos.sh out "$MIN_OS" | tee -a "$GITHUB_STEP_SUMMARY"
 
-      # Linux: the static OpenSSL only changes with its version, per architecture.
+      # Linux: the static OpenSSL and ICU only change with their version, per architecture.
       - name: Cache OpenSSL
         if: runner.os == 'Linux' && env.OPENSSL_VERSION != ''
         uses: actions/cache@v6
         with:
           path: ${{ inputs.package }}-work/openssl
           key: openssl-${{ env.OPENSSL_VERSION }}-${{ inputs.platform }}
+      - name: Cache ICU
+        if: runner.os == 'Linux' && env.ICU_VERSION != ''
+        uses: actions/cache@v6
+        with:
+          path: ${{ inputs.package }}-work/icu
+          key: icu-${{ env.ICU_VERSION }}-${{ inputs.platform }}
       - name: Build tools
         if: runner.os == 'Linux'
         run: sudo apt-get install -y --no-install-recommends cmake bison flex patchelf uuid-dev libncurses-dev

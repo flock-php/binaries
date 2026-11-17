@@ -39,7 +39,7 @@ func TestCheck(t *testing.T) {
 	    "redis": {"lines": ["8.4", "8.10"]},
 	    "meilisearch": {"lines": ["1"]},
 	    "typesense": {"lines": ["30"]},
-	    "postgres": {"lines": ["18"], "env": {"OPENSSL_VERSION": "3.5.9"}}
+	    "postgres": {"lines": ["18"], "env": {"OPENSSL_VERSION": "3.5.9", "ICU_VERSION": "79.1"}}
 	  }}`), &v); err != nil {
 		t.Fatal(err)
 	}
@@ -57,6 +57,7 @@ func TestCheck(t *testing.T) {
 			"php/frankenphp":              {"1.14.0", "1.13.0"},
 			"crazywhalecc/static-php-cli": {"2.8.5"},
 			"openssl/openssl":             {"4.0.3", "3.5.10", "3.5.9"},
+			"unicode-org/icu":             {"80.1", "79.1"},
 			"xdebug/xdebug":               {"3.6.0", "3.5.3"},
 			"open-telemetry/opentelemetry-php-instrumentation": {"1.5.0", "1.4.2"},
 			"igbinary/igbinary":        {"3.2.17", "3.2.16"},
@@ -108,6 +109,7 @@ func TestCheck(t *testing.T) {
 	for _, row := range []string{
 		"| FrankenPHP | 1.13.0 | 1.14.0 |",
 		"| OpenSSL | 3.5.9 | 3.5.10 |", // the same line, not 4.0
+		"| ICU | 79.1 | 80.1 |",
 		"| xdebug (macOS) | 3.5.3 | 3.6.0 |",
 		"| opentelemetry (macOS) | 1.4.2 | 1.5.0 |",
 		"| igbinary for PHP 8.5 (Windows) | 3.2.17RC1 | 3.2.17 |",

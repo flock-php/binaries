@@ -18,7 +18,7 @@ vendor's own binaries, checked against the vendor's checksum or signature.
 | `php` | built: cli + fpm, extensions compiled in, optional ones in `ext/` | mirrored: the official thread-safe build from windows.php.net | built: as on macOS, against glibc | macOS and Linux 8.1–8.5, Windows 7.4–8.5 |
 | `php-exts` | – | built: extension DLLs for the Windows build (below) | – | one pack per Windows minor |
 | `frankenphp` | built: FrankenPHP with the same PHP and extensions as `php` | built: FrankenPHP next to the official PHP build it links against | built: as on macOS | PHP 8.2–8.5 |
-| `postgres` | built: server, client tools (psql, pg_dump, …), contrib, headers and PGXS | built | built | 14–18 |
+| `postgres` | built: server, client tools (psql, pg_dump, …), contrib, headers and PGXS, with OpenSSL and ICU | built, with vcpkg's OpenSSL and ICU | built, as on macOS | 14–18 |
 | `pgvector-pg<major>` | built against `postgres` | built with MSVC against `postgres` | built against `postgres` | 0.8, for PostgreSQL 14–18 |
 | `postgis-pg<major>` | built against `postgres`, with GEOS and PROJ | repackaged from OSGeo's bundle | built against `postgres`, with GEOS and PROJ | 3.6, for PostgreSQL 14–18 |
 | `pgrouting-pg<major>` | built against `postgres` (needs `postgis`) | repackaged from OSGeo's bundle | built against `postgres` (needs `postgis`) | 4, for PostgreSQL 14–18 |
@@ -155,6 +155,13 @@ build has `flock-package.json` at the top (what it is, how it was built) and `LI
   libcurl, and MySQL libkeyutils: Flock's Linux packages depend on them.
 - **PostgreSQL on Windows** refuses to run as an administrator: start it with `pg_ctl`, which drops
   the administrator rights first.
+- **PostgreSQL has ICU** (static on macOS and Linux, `ICU_VERSION` in `versions.json`; vcpkg's DLLs
+  on Windows), so ICU collations work: `CREATE COLLATION … (provider = icu, …)`, including the
+  non-deterministic ones that stand in for MySQL's `*_ci`, `initdb --locale-provider=icu`, and
+  dumps taken on servers that use them (most do: with ICU, `initdb` defaults to it since
+  PostgreSQL 16) restore. Flock's own `initdb` keeps `--locale=C`. A newer ICU changes collation
+  versions, which PostgreSQL reports (`ALTER COLLATION … REFRESH VERSION`): updating the pin is a
+  rebuild, like OpenSSL. On Linux, `postgres` and `initdb` link the system's libstdc++ for it.
 - **PHP on Windows** is only mirrored while it is windows.php.net's current build of its minor
   (older builds have no published checksum): a patch the daily run misses entirely is skipped.
 - **Meilisearch** is only ever the MIT Community Edition, never the BUSL `meilisearch-enterprise-*`
@@ -209,7 +216,7 @@ reports, nothing gets built:
 |---|---|
 | New release line: PHP 8.6 | a line newer than the newest we build. MySQL and MariaDB: LTS lines only; Node.js: even majors only. A new PHP minor is reported from its first release candidate on; otherwise never pre-releases. |
 | End of life: Node.js 18 | a line we build no longer gets updates upstream ([endoflife.date](https://endoflife.date)) |
-| Updates available for pinned versions | something pinned (FrankenPHP, static-php-cli, OpenSSL, the Windows extensions, xdebug and opentelemetry on macOS) has a newer stable release; one issue, updated weekly |
+| Updates available for pinned versions | something pinned (FrankenPHP, static-php-cli, OpenSSL, ICU, the Windows extensions, xdebug and opentelemetry on macOS) has a newer stable release; one issue, updated weekly |
 
 Close a new-line or end-of-life issue to decide against it (skip the line, keep building it): it
 isn't reported again. Issues close by themselves once versions.json covers them (the line was added
@@ -322,7 +329,8 @@ packages/<name>/<platform>/      build script per package and platform
 packages/<name>/mirror.sh        download + verify a vendor release (mirrored packages)
 packages/<name>/source.sh        download + verify the upstream source (builds, and published for copyleft)
 scripts/lib.sh                   download and checksum helpers for the package scripts
-scripts/macos/                   static OpenSSL build, relocation of macOS installs (@loader_path)
+scripts/macos/                   static OpenSSL and ICU builds, relocation of macOS installs (@loader_path)
+scripts/linux/                   static OpenSSL and ICU builds for the Linux packages
 scripts/windows/                 php-windows-builder setup, extension packs, Windows smoke tests
 scripts/publish.sh               upload a package (and its sources) to its release
 scripts/ready-issue.sh           keep the Ready for testing issue up to date

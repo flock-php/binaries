@@ -338,6 +338,9 @@ func check(v *versions, phpBuildScript string, src sources, now time.Time) (find
 	if ossl := opensslPin(v); ossl != "" {
 		pins = append(pins, pin{"OpenSSL", ossl, "openssl/openssl", "openssl-", "`OPENSSL_VERSION` of postgres and mariadb (then raise their macOS and Linux `build`)", truncate(ossl, 2)})
 	}
+	if icu := envPin(v, "ICU_VERSION"); icu != "" {
+		pins = append(pins, pin{"ICU", icu, "unicode-org/icu", "release-", "`ICU_VERSION` of postgres (then raise its macOS and Linux `build`; Windows takes vcpkg's)", ""})
+	}
 	for _, ext := range []struct{ name, repo string }{{"xdebug", "xdebug/xdebug"}, {"opentelemetry", "open-telemetry/opentelemetry-php-instrumentation"}} {
 		if m := regexp.MustCompile(ext.name + `-([0-9.]+)\.tgz`).FindStringSubmatch(phpBuildScript); m != nil {
 			pins = append(pins, pin{ext.name + " (macOS)", m[1], ext.repo, "", "`packages/php/macos/build.sh` (then raise `php.macos.build` and `frankenphp.macos.build`)", ""})

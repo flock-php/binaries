@@ -70,6 +70,9 @@ case "$PKG" in
     done
     hello() { [[ "$("${psql[@]}" -c 'create extension hello' -c 'select hello()' | tail -1)" == 42 ]]; }
     check "extension built with PGXS" hello
+    # ICU: a non-deterministic collation (what a MySQL *_ci collation becomes), compared through it.
+    icu() { [[ "$("${psql[@]}" -c "create collation unicode_ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)" -c "select 'Flock' = 'FLOCK' collate unicode_ci" | tail -1)" == t ]]; }
+    check "ICU collation (case-insensitive compare)" icu
     check "createdb" "$D/bin/createdb" -h 127.0.0.1 -p 54329 -U postgres flock
     check "pg_dump | pg_restore" bash -c "'$D/bin/pg_dump' -h 127.0.0.1 -p 54329 -U postgres -Fc postgres >'$tmp/dump' && '$D/bin/pg_restore' -l '$tmp/dump' >/dev/null"
     check "pg_ctl stop" "$D/bin/pg_ctl" stop -D "$data" -m fast

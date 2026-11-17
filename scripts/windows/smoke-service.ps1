@@ -104,6 +104,12 @@ switch ($Package) {
                 if (-not (Test-Path $f)) { throw "no $f" }
             }
         }
+        # ICU: a non-deterministic collation (what a MySQL *_ci collation becomes), compared through it.
+        Check 'ICU collation (case-insensitive compare)' {
+            $r = Invoke-Native "$bin/psql.exe" ($psql + @('-c', "create collation unicode_ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)",
+                '-c', "select 'Flock' = 'FLOCK' collate unicode_ci"))
+            if (($r -split "`n")[-1].Trim() -ne 't') { throw "got: $r" }
+        }
         Check 'createdb' { Invoke-Native "$bin/createdb.exe" @('-h', '127.0.0.1', '-p', '54329', '-U', 'postgres', 'flock') }
         Check 'pg_dump | pg_restore' {
             Invoke-Native "$bin/pg_dump.exe" @('-h', '127.0.0.1', '-p', '54329', '-U', 'postgres', '-Fc', '-f', "$tmp/dump", 'postgres')

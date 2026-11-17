@@ -44,12 +44,12 @@
     "postgres": {
       "lines": ["14", "15", "16", "17", "18"],
       "platforms": {
-        "macos-arm64": { "how": "build", "build": 2 },
-        "windows-x64": { "how": "build", "build": 2 },
-        "linux-x64": { "how": "build", "build": 2 },
-        "linux-arm64": { "how": "build", "build": 2 }
+        "macos-arm64": { "how": "build", "build": 3 },
+        "windows-x64": { "how": "build", "build": 3 },
+        "linux-x64": { "how": "build", "build": 3 },
+        "linux-arm64": { "how": "build", "build": 3 }
       },
-      "env": { "OPENSSL_VERSION": "3.5.9", "MIN_OS": "13.0" }
+      "env": { "OPENSSL_VERSION": "3.5.9", "ICU_VERSION": "79.1", "MIN_OS": "13.0" }
     },
     "pgvector": {
       "lines": ["0.8"],
